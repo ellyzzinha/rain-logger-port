@@ -1,14 +1,15 @@
 import { findByStoreName } from "@vendetta/metro";
 import { useProxy } from "@vendetta/storage";
 import { storage } from "@vendetta/plugin";
-import React from "react";
+// ✅ React do metro/common
+import { React } from "@vendetta/metro/common";
 
 import StatusIcon from "./StatusIcon";
 import { getStatusColor } from "./colors";
 
 const PresenceStore = findByStoreName("PresenceStore");
 const SessionsStore = findByStoreName("SessionsStore");
-const UserStore    = findByStoreName("UserStore");
+const UserStore     = findByStoreName("UserStore");
 
 let statusCache: any;
 let statusCacheHits = 0;
@@ -33,31 +34,38 @@ function getUserStatuses(userId: string): Record<string, string> | undefined {
     if (!currentUserId) currentUserId = UserStore.getCurrentUser()?.id;
 
     if (userId === currentUserId) {
-        const sessions = SessionsStore.getSessions() as Record<string, { clientInfo: { client: string }; status: string }>;
+        const sessions = SessionsStore.getSessions() as Record
+            string,
+            { clientInfo: { client: string }; status: string }
+        >;
         return Object.values(sessions).reduce<Record<string, string>>((acc, curr) => {
             if (curr.clientInfo.client !== "unknown") acc[curr.clientInfo.client] = curr.status;
             return acc;
         }, {});
     }
 
-    return queryPresenceStoreWithCache()?.clientStatuses[userId];
+    return queryPresenceStoreWithCache()?.clientStatuses?.[userId];
 }
 
 export default function StatusIcons({ userId, size = 16 }: { userId: string; size?: number }) {
     useProxy(storage);
 
-    const statuses = getUserStatuses(userId);
+    // ✅ Guarda defensiva — evita crash se userId for inválido
+    if (!userId) return null;
 
-    return (
-        <>
-            {Object.entries(statuses ?? {}).map(([platform, status]) => (
-                <StatusIcon
-                    key={platform}
-                    platform={platform}
-                    color={getStatusColor(status, storage.fallbackColors)}
-                    iconSize={size}
-                />
-            ))}
-        </>
+    const statuses = getUserStatuses(userId);
+    if (!statuses) return null;
+
+    return React.createElement(
+        React.Fragment,
+        null,
+        ...Object.entries(statuses).map(([platform, status]) =>
+            React.createElement(StatusIcon, {
+                key: platform,
+                platform,
+                color: getStatusColor(status, storage.fallbackColors),
+                iconSize: size,
+            })
+        )
     );
 }
