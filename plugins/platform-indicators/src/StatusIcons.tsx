@@ -1,7 +1,6 @@
 import { findByStoreName } from "@vendetta/metro";
 import { useProxy } from "@vendetta/storage";
 import { storage } from "@vendetta/plugin";
-// ✅ React do metro/common
 import { React } from "@vendetta/metro/common";
 
 import StatusIcon from "./StatusIcon";
@@ -34,10 +33,12 @@ function getUserStatuses(userId: string): Record<string, string> | undefined {
     if (!currentUserId) currentUserId = UserStore.getCurrentUser()?.id;
 
     if (userId === currentUserId) {
-        const sessions = SessionsStore.getSessions() as Record
+        // ✅ Corrigido: Sintaxe do Record limpa para evitar erro de build
+        const sessions = SessionsStore.getSessions() as Record<
             string,
-            { clientInfo: { client: string, status: string }
+            { clientInfo: { client: string, status: string } }
         >;
+        
         return Object.values(sessions).reduce<Record<string, string>>((acc, curr) => {
             if (curr.clientInfo.client !== "unknown") acc[curr.clientInfo.client] = curr.status;
             return acc;
@@ -50,7 +51,6 @@ function getUserStatuses(userId: string): Record<string, string> | undefined {
 export default function StatusIcons({ userId, size = 16 }: { userId: string; size?: number }) {
     useProxy(storage);
 
-    // ✅ Guarda defensiva — evita crash se userId for inválido
     if (!userId) return null;
 
     const statuses = getUserStatuses(userId);
