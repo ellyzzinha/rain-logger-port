@@ -1,14 +1,14 @@
 {
-  "name": "Use System Emoji",
-  "description": "Replaces Twemoji with system emoji in messages",
+  "name": "Use Apple Emoji",
+  "description": "Substitui os emojis do sistema pelos da Apple em todo o app.",
   "authors": [
     {
-      "name": "nexpid",
-      "id": "853550207039832084"
+      "name": "Giselly",
+      "id": "seu_id_do_discord"
     }
   ],
   "main": "src/index.ts",
   "vendetta": {
-    "icon": "SuperReactionIcon"
+    "icon": "ic_emoji_24px"
   }
 }
