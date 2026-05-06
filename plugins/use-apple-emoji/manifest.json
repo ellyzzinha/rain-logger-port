@@ -1,13 +1,13 @@
 {
   "name": "Use Apple Emoji",
-  "description": "substitui os emojis do sistema pelos da apple em todo o app.",
+  "description": "Substitui os emojis Twemoji pelos da Apple no chat, reações e seletor de emojis.",
   "authors": [
     {
-      "name": "Giselly",
+      "name": "ellyzzinha",
       "id": "853550207039832084"
     }
   ],
-  "main": "src/index.ts",
+  "main": "index.js",
   "vendetta": {
     "icon": "ic_emoji_24px"
   }
