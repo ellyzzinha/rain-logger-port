@@ -5,61 +5,87 @@ var before = window.vendetta.patcher.before;
 
 var patches = [];
 
-// ── Emoji regex ──────────────────────────────────────────────────────────────
-var EMOJI_RE = /<a?:(\w+):(\d+)>/gi;
+// ── Configurações padrão ──────────────────────────────────────────────────────
+var settings = {
+    emojiSize: 48,
+    hyperLink: true,
+    stickerHyperLink: true,
+};
 
-function processEmojis(msg, size, hyperlink) {
-    if (!msg || !msg.content) return;
-    var regex = /<a?:(\w+):(\d+)>/gi;
-    var match;
+// ── Utils: lógica idêntica ao rain/utils.ts ───────────────────────────────────
+var HAS_EMOTES_RE = /<a?:(\w+):(\d+)>/i;
+
+function extractUnusableEmojis(messageString, size) {
     var EmojiStore = findByStoreName("EmojiStore");
     var SelectedGuildStore = findByStoreName("SelectedGuildStore");
-    var currentGuildId = SelectedGuildStore && SelectedGuildStore.getGuildId ? SelectedGuildStore.getGuildId() : null;
-    var hasEmote = false;
-    while ((match = regex.exec(msg.content)) !== null) {
-        hasEmote = true;
-        break;
-    }
-    if (!hasEmote) return;
+    var getCustomEmojiById = EmojiStore && EmojiStore.getCustomEmojiById;
+    var getGuildId = SelectedGuildStore && SelectedGuildStore.getGuildId;
+    var currentGuildId = getGuildId ? getGuildId() : null;
 
-    var newContent = msg.content;
-    var emojiRe = /<a?:(\w+):(\d+)>/gi;
+    var emojiUrls = [];
+    var re = /<a?:(\w+):(\d+)>/gi;
     var m;
-    while ((m = emojiRe.exec(newContent)) !== null) {
-        var emojiName = m[1];
-        var emojiId   = m[2];
-        var full      = m[0];
-        var emoji     = EmojiStore && EmojiStore.getCustomEmojiById ? EmojiStore.getCustomEmojiById(emojiId) : null;
-        if (!emoji) continue;
-        if (emoji.guildId === currentGuildId && !emoji.animated) continue;
-        var animated = emoji.animated ? "&animated=true" : "";
-        var url = "https://cdn.discordapp.com/emojis/" + emojiId + ".webp?size=" + (size || 48) + "&name=" + emojiName + animated;
-        var replacement = hyperlink !== false ? "[" + emojiName + "](" + url + ")" : url;
-        newContent = newContent.replace(full, replacement);
-        emojiRe.lastIndex = 0; // reset after replace
+
+    // coleta todas as ocorrências primeiro para não travar o exec após replace
+    var found = [];
+    while ((m = re.exec(messageString)) !== null) {
+        found.push({ full: m[0], name: m[1], id: m[2] });
     }
 
-    msg.content = newContent.trim();
+    for (var i = 0; i < found.length; i++) {
+        var f = found[i];
+        var emoji = getCustomEmojiById ? getCustomEmojiById(f.id) : null;
+        if (!emoji) continue;
+
+        if (emoji.guildId !== currentGuildId || emoji.animated) {
+            // remove o emoji do texto original
+            messageString = messageString.replace(f.full, "");
+
+            var baseUrl = emoji.url
+                ? emoji.url.split("?")[0]
+                : "https://cdn.discordapp.com/emojis/" + emoji.id + ".webp";
+
+            var animated = emoji.animated ? "&animated=true" : "";
+            var fullUrl = baseUrl + "?size=" + size + "&name=" + (emoji.name || f.name) + animated;
+
+            if (settings.hyperLink) {
+                emojiUrls.push("[" + (emoji.name || f.name) + "](" + fullUrl + ")");
+            } else {
+                emojiUrls.push(fullUrl);
+            }
+        }
+    }
+
+    return {
+        newContent: messageString.trim(),
+        extractedEmojis: emojiUrls,
+    };
+}
+
+function modifyIfNeeded(msg) {
+    if (!msg || !msg.content) return;
+    if (!HAS_EMOTES_RE.test(msg.content)) return;
+
+    var result = extractUnusableEmojis(msg.content, settings.emojiSize);
+
+    msg.content = result.newContent;
+
+    if (result.extractedEmojis.length > 0) {
+        msg.content += "\n" + result.extractedEmojis.join("\n");
+    }
+
     msg.invalidEmojis = [];
 }
 
-// ── Sticker helpers ───────────────────────────────────────────────────────────
-function buildStickerURL(sticker, size) {
-    var format;
-    if (sticker.format_type === 1) format = "png";
-    else if (sticker.format_type === 2) format = "png";
-    else format = "gif";
-    return "https://media.discordapp.net/stickers/" + sticker.id + "." + format + "?size=" + (size || 160);
-}
-
-function isStickerFree(sticker, channelId) {
-    if (!sticker) return true;
-    if (sticker.available === false) return false;
-    if (!sticker.guild_id) return true;
-    var ChannelStore = findByStoreName("ChannelStore");
-    var channel = ChannelStore && ChannelStore.getChannel ? ChannelStore.getChannel(channelId) : null;
-    if (!channel) return false;
-    return sticker.guild_id === channel.guild_id;
+function buildStickerURL(sticker) {
+    switch (sticker.format_type) {
+        case 1:
+            return "https://media.discordapp.net/stickers/" + sticker.id + ".png";
+        case 2:
+            return "https://media.discordapp.net/stickers/" + sticker.id + ".png"; // apng
+        default:
+            return "https://media.discordapp.net/stickers/" + sticker.id + ".gif";
+    }
 }
 
 // ── onLoad / onUnload ─────────────────────────────────────────────────────────
@@ -70,38 +96,43 @@ function onLoad() {
     var uploadModule  = findByProps("uploadLocalFiles");
     var UserStore     = findByStoreName("UserStore");
     var StickersStore = findByStoreName("StickersStore");
+    var ChannelStore  = findByStoreName("ChannelStore");
 
     var SENDABLE = (StickerUtils && StickerUtils.StickerSendability)
-        ? (StickerUtils.StickerSendability.SENDABLE !== undefined ? StickerUtils.StickerSendability.SENDABLE : 0)
+        ? (StickerUtils.StickerSendability.SENDABLE !== undefined
+            ? StickerUtils.StickerSendability.SENDABLE
+            : 0)
         : 0;
 
-    // 1. Nitro emoji checks
+    function hasNitro() {
+        var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
+        return user && user.premiumType !== null;
+    }
+
+    // 1. Nitro checks — emojis
     if (nitroInfo) {
         patches.push(instead("canUseEmojisEverywhere", nitroInfo, function(args, orig) {
-            var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-            if (user && user.premiumType !== null) return orig.apply(this, args);
+            if (hasNitro()) return orig.apply(this, args);
             return true;
         }));
         patches.push(instead("canUseAnimatedEmojis", nitroInfo, function(args, orig) {
-            var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-            if (user && user.premiumType !== null) return orig.apply(this, args);
+            if (hasNitro()) return orig.apply(this, args);
             return true;
         }));
 
-        // Sticker nitro check (name varies by version)
+        // Nitro check — stickers (nome varia por versão)
         var stickerCheckName = nitroInfo.canUseCustomStickersEverywhere
             ? "canUseCustomStickersEverywhere"
             : "canUseStickersEverywhere";
         if (nitroInfo[stickerCheckName]) {
             patches.push(instead(stickerCheckName, nitroInfo, function(args, orig) {
-                var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-                if (user && user.premiumType !== null) return orig.apply(this, args);
+                if (hasNitro()) return orig.apply(this, args);
                 return true;
             }));
         }
     }
 
-    // 2. Sticker sendability patches
+    // 2. Sticker sendability — deixa clicável na lista
     if (StickerUtils) {
         if (StickerUtils.getStickerSendability) {
             patches.push(instead("getStickerSendability", StickerUtils, function() {
@@ -115,53 +146,63 @@ function onLoad() {
         }
     }
 
-    // 3. sendMessage — handle emojis + stickers
+    // 3. sendMessage — emojis (lógica rain/sendMessage.ts)
     if (MessageModule) {
         patches.push(before("sendMessage", MessageModule, function(args) {
-            var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-            if (user && user.premiumType !== null) return;
-            processEmojis(args[1], 48, true);
+            if (!hasNitro()) modifyIfNeeded(args[1]);
         }));
 
-        patches.push(instead("sendStickers", MessageModule, function(args, orig) {
+        // 4. sendStickers — lógica rain/sendMessage.ts + buildStickerURL do rain
+        patches.push(instead("sendStickers", MessageModule, function(args, origFunc) {
+            if (hasNitro()) return origFunc.apply(this, args);
+
             var channelId  = args[0];
-            var stickerIds = args[1];
+            var stickerIds = args[1]; // pode ser array ou id único dependendo da versão
             var extra      = args[3];
-            var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-            if (user && user.premiumType !== null) return orig.apply(this, args);
 
-            var toFree = [];
-            for (var i = 0; i < stickerIds.length; i++) {
+            // normaliza para array
+            var ids = Array.isArray(stickerIds) ? stickerIds : [stickerIds];
+
+            for (var i = 0; i < ids.length; i++) {
                 var sticker = StickersStore && StickersStore.getStickerById
-                    ? StickersStore.getStickerById(stickerIds[i])
+                    ? StickersStore.getStickerById(ids[i])
                     : null;
-                if (!sticker) continue;
+
+                if (!sticker) { origFunc.apply(this, args); continue; }
+
+                // sticker lottie (format_type 3) ou de pack padrão → manda normal
                 if (sticker.format_type === 3 || sticker.pack_id !== undefined) {
-                    // lottie / default pack → send normally
-                    orig.apply(this, args);
-                    return;
+                    origFunc.apply(this, args);
+                    continue;
                 }
-                if (!isStickerFree(sticker, channelId)) {
-                    toFree.push(sticker);
+
+                // sticker do mesmo servidor → manda normal
+                var channelGuildId = ChannelStore && ChannelStore.getChannel
+                    ? ChannelStore.getChannel(channelId) && ChannelStore.getChannel(channelId).guild_id
+                    : null;
+
+                if (channelGuildId && channelGuildId === sticker.guild_id) {
+                    origFunc.apply(this, args);
+                    continue;
                 }
-            }
 
-            if (!toFree.length) return orig.apply(this, args);
+                // sticker bloqueado → converte em link e manda como mensagem
+                var stickerName = sticker.name || "Sticker";
+                var stickerURL  = buildStickerURL(sticker);
+                var content = settings.stickerHyperLink
+                    ? "[" + stickerName + "](" + stickerURL + ")"
+                    : stickerURL;
 
-            for (var j = 0; j < toFree.length; j++) {
-                var s = toFree[j];
-                var url = buildStickerURL(s, 160);
-                var content = s.name ? "[" + s.name + "](" + url + ")" : url;
                 MessageModule.sendMessage(channelId, { content: content }, null, extra);
             }
         }));
 
-        // uploadLocalFiles (older Discord builds)
-        if (uploadModule && uploadModule.uploadLocalFiles) {
+        // 5. uploadLocalFiles (builds antigos)
+        if (uploadModule && uploadModule.uploadLocalFiles !== undefined) {
             patches.push(before("uploadLocalFiles", uploadModule, function(args) {
-                var user = UserStore && UserStore.getCurrentUser ? UserStore.getCurrentUser() : null;
-                if (user && user.premiumType !== null) return;
-                if (args[0] && args[0].parsedMessage) processEmojis(args[0].parsedMessage, 48, true);
+                if (!hasNitro() && args[0] && args[0].parsedMessage) {
+                    modifyIfNeeded(args[0].parsedMessage);
+                }
             }));
         }
     }
