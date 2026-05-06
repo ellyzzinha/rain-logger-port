@@ -84,5 +84,3 @@ export const onUnload = () => {
     }
   }
 };
-
-export { default as settings } from "./settings";
