@@ -1,14 +1,6 @@
 {
   "name": "Use Apple Emoji",
-  "description": "Substitui os emojis do sistema pelos da Apple em todo o app.",
-  "authors": [
-    {
-      "name": "Giselly",
-      "id": "seu_id_do_discord"
-    }
-  ],
-  "main": "src/index.ts",
-  "vendetta": {
-    "icon": "ic_emoji_24px"
-  }
+  "description": "substitui os emojis do sistema pelos da apple.",
+  "authors": [{ "name": "Giselly", "id": "seu_id" }],
+  "main": "index.js"
 }
