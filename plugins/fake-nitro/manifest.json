@@ -1,1 +1,13 @@
-
+{
+  "name":```
+ "FakeNitro Unificado",
+  "description": "freemoji + freestickers + full spoofing (lógica rain).",
+  "authors": [
+    {
+      "name": "ellyzzinha",
+      "id": "seu_id_do_discord_aqui"
+    }
+  ],
+  "main": "index.tsx",
+  "hash": "fakenitro-elly"
+}
