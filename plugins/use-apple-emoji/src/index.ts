@@ -1,223 +1,232 @@
 /**
- * Use System Emoji (Apple)
+ * Use Apple Emoji
  *
- * Patches the emoji render components directly instead of mutating message
- * content rows. This means:
- *  - Jumbo (large) emojis stay jumbo in chat
- *  - Reactions get replaced
- *  - The emoji picker gets replaced
- *  - No string manipulation; the surrogate codepoints are preserved in the
- *    underlying data so copy-paste still works
+ * Estratégia: patchear os componentes de renderização de emoji diretamente,
+ * sem manipular as content rows. Assim:
+ *  - Emojis jumbo continuam grandes no chat
+ *  - Reações são substituídas
+ *  - O seletor de emojis é substituído
+ *  - O surrogate original é preservado (copy-paste funciona normal)
  *
- * Apple emoji images are served from the jsDelivr CDN backed by
- * iamcal/emoji-datasource-apple (64 px PNGs, free to use).
- * URL pattern:
+ * Imagens Apple servidas pelo jsDelivr via iamcal/emoji-datasource-apple.
+ * Padrão de URL:
  *   https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/<codepoints>.png
- * where <codepoints> is the lower-cased, dash-joined Unicode sequence, e.g.
- *   1f600.png         → 😀
- *   1f1e7-1f1f7.png   → 🇧🇷
+ *
+ * Exemplos:
+ *   😀  → 1f600.png
+ *   🇧🇷 → 1f1e7-1f1f7.png
+ *   👍🏽 → 1f44d-1f3fd.png
  */
 
 import { patcher, findByProps, React } from "$/types";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── CDN ────────────────────────────────────────────────────────────────────
 
-const CDN_BASE =
+const CDN =
   "https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/";
 
 /**
- * Converts a Unicode surrogate string (the raw emoji characters) into the
- * codepoint path used by the iamcal CDN, e.g. "😀" → "1f600.png"
+ * Converte um surrogate string Unicode no caminho de arquivo usado pelo iamcal.
+ * Remove o variation selector U+FE0F pois a biblioteca não o inclui nos nomes.
+ *
+ * "😀"   → "1f600.png"
+ * "👍🏽" → "1f44d-1f3fd.png"
+ * "🇧🇷" → "1f1e7-1f1f7.png"
  */
-function surrogateToCDNPath(surrogate: string): string | null {
+function toPath(surrogate: string): string | null {
   if (!surrogate) return null;
 
-  const codepoints: string[] = [];
-
+  const pts: string[] = [];
   for (let i = 0; i < surrogate.length; ) {
-    const code = surrogate.codePointAt(i);
-    if (code === undefined) break;
-
-    // Skip variation selector U+FE0F — iamcal strips it from filenames
-    if (code !== 0xfe0f) {
-      codepoints.push(code.toString(16));
-    }
-
-    // Advance by 2 chars for surrogate pairs (code > 0xFFFF), 1 otherwise
-    i += code > 0xffff ? 2 : 1;
+    const cp = surrogate.codePointAt(i);
+    if (cp === undefined) break;
+    if (cp !== 0xfe0f) pts.push(cp.toString(16)); // strip variation selector
+    i += cp > 0xffff ? 2 : 1;
   }
 
-  if (!codepoints.length) return null;
-  return codepoints.join("-") + ".png";
+  return pts.length ? pts.join("-") + ".png" : null;
 }
 
-function appleEmojiURL(surrogate: string): string | null {
-  const path = surrogateToCDNPath(surrogate);
-  return path ? CDN_BASE + path : null;
+function appleURL(surrogate: string): string | null {
+  const p = toPath(surrogate);
+  return p ? CDN + p : null;
 }
 
-// ─── Inline style factories ──────────────────────────────────────────────────
+// ─── Renderer ────────────────────────────────────────────────────────────────
 
 /**
- * Returns a <Image> element (React Native) that renders the Apple emoji at the
- * correct size.  Falls back to the original render if we can't resolve a URL.
+ * Cria um elemento <Image> do React Native com a imagem Apple do emoji.
+ * Retorna null se a URL não puder ser resolvida ou se o módulo RN não estiver
+ * disponível, permitindo fallback silencioso para o original.
  */
-function renderAppleEmoji(surrogate: string, size: number): React.ReactElement | null {
-  const url = appleEmojiURL(surrogate);
+function appleImg(surrogate: string, size: number): React.ReactElement | null {
+  const url = appleURL(surrogate);
   if (!url) return null;
 
-  // React Native Image – available globally on RN bundles; Discord mobile is RN.
-  const { Image, View } = findByProps("Image", "View") ?? (global as any).ReactNative ?? {};
+  // Tenta encontrar Image pelo módulo react-native exposto pelo Discord/Revenge.
+  // Várias variações de nome são tentadas para máxima compatibilidade.
+  const RN =
+    findByProps("Image", "View") ??
+    findByProps("Image") ??
+    (typeof global !== "undefined" && (global as any).ReactNative) ??
+    null;
+
+  const Image = RN?.Image;
   if (!Image) return null;
 
   return React.createElement(Image, {
-    key: `apple-emoji-${surrogate}`,
+    key: `ape-${surrogate}-${size}`,
     source: { uri: url },
-    style: {
-      width: size,
-      height: size,
-      // Prevents the image from being clipped inside flex containers
-      resizeMode: "contain",
-    },
+    style: { width: size, height: size, resizeMode: "contain" },
     accessibilityLabel: surrogate,
-    // Keep the image crisp at small sizes
     fadeDuration: 0,
   });
 }
 
-// ─── Component patches ──────────────────────────────────────────────────────
+// ─── Patches ─────────────────────────────────────────────────────────────────
 
-const unpatchers: Array<() => void> = [];
+const unpatchers: (() => void)[] = [];
 
-function patchEmojiComponents(): void {
-  // Discord's emoji rendering goes through several components depending on
-  // context. We patch all likely candidates so chat, reactions and picker are
-  // all covered.
-  //
-  // Component names we look for (they get mangled, so we search by props):
-  //   • NativeEmoji  – base component, receives { emoji: { surrogates } }
-  //   • EmojiNode    – message content renderer
-  //   • EmojiReaction / ReactionEmoji – reaction bar
-  //   • EmojiPickerListRow / EmojiPickerCell – picker grid
+/**
+ * Wrapper seguro: tenta patcher.instead num módulo+chave.
+ * Silencia erros caso o módulo não exista nesta versão do Discord.
+ */
+function tryPatch(
+  mod: Record<string, any> | null | undefined,
+  key: string,
+  handler: (args: any[], orig: (...a: any[]) => any) => any
+) {
+  if (!mod || typeof mod[key] !== "function") return;
+  try {
+    unpatchers.push(patcher.instead(mod, key, handler));
+  } catch {
+    // módulo existe mas patch falhou — ignora silenciosamente
+  }
+}
 
+function init() {
   // ── 1. NativeEmoji / EmojiComponent ────────────────────────────────────
-  //    Props shape: { emoji: { surrogates: string }, emojiSize?: number }
-  const EmojiModule = findByProps("NativeEmoji") ?? findByProps("EmojiComponent");
+  // Props: { emoji: { surrogates: string }, emojiSize?: number }
+  // É o componente base — cobre chat e a maioria dos contextos.
+  const emojiMod =
+    findByProps("NativeEmoji") ??
+    findByProps("EmojiComponent") ??
+    findByProps("renderNativeEmoji");
 
-  if (EmojiModule) {
-    const key = EmojiModule.NativeEmoji ? "NativeEmoji" : "EmojiComponent";
+  if (emojiMod) {
+    const key =
+      "NativeEmoji" in emojiMod
+        ? "NativeEmoji"
+        : "EmojiComponent" in emojiMod
+        ? "EmojiComponent"
+        : "renderNativeEmoji";
 
-    unpatchers.push(
-      patcher.instead(EmojiModule, key, (args, _orig) => {
-        const [props] = args as [{ emoji?: { surrogates?: string }; emojiSize?: number }];
-        const surrogate = props?.emoji?.surrogates;
-        if (!surrogate) return _orig(...args);
+    tryPatch(emojiMod, key, ([props], orig) => {
+      const surrogates: string | undefined =
+        props?.emoji?.surrogates ?? props?.surrogates;
+      if (!surrogates) return orig(props);
 
-        const size = props.emojiSize ?? 24;
-        return renderAppleEmoji(surrogate, size) ?? _orig(...args);
-      })
-    );
+      const size: number = props?.emojiSize ?? props?.size ?? 24;
+      return appleImg(surrogates, size) ?? orig(props);
+    });
   }
 
-  // ── 2. Emoji (message content node) ─────────────────────────────────────
-  //    Props shape: { node: { surrogate: string, jumboable?: boolean } }
-  const EmojiNodeModule = findByProps("renderEmoji") ?? findByProps("Emoji");
+  // ── 2. Emoji node (mensagens) ────────────────────────────────────────────
+  // Props: { node: { surrogate: string, jumboable?: boolean } }
+  // Responsável pela renderização inline nas mensagens.
+  // O `jumboable` indica que o emoji deve ser grande (~48 px).
+  const nodeMod =
+    findByProps("renderEmoji") ??
+    findByProps("Emoji", "EmojiText") ??
+    findByProps("Emoji");
 
-  if (EmojiNodeModule) {
-    const key = Object.keys(EmojiNodeModule).find(
-      (k) => typeof EmojiNodeModule[k] === "function" && k.toLowerCase().includes("emoji")
+  if (nodeMod) {
+    const key = Object.keys(nodeMod).find(
+      (k) =>
+        typeof nodeMod[k] === "function" &&
+        /^(emoji|Emoji|renderEmoji)/i.test(k)
     );
 
     if (key) {
-      unpatchers.push(
-        patcher.instead(EmojiNodeModule, key, (args, orig) => {
-          const [props] = args as [
-            {
-              node?: { surrogate?: string; jumboable?: boolean };
-              jumboable?: boolean;
-              surrogates?: string;
-            }
-          ];
+      tryPatch(nodeMod, key, ([props], orig) => {
+        const surrogates: string | undefined =
+          props?.node?.surrogate ??
+          props?.surrogates ??
+          props?.emoji?.surrogates;
+        if (!surrogates) return orig(props);
 
-          const surrogate =
-            props?.node?.surrogate ?? props?.surrogates;
-          if (!surrogate) return orig(...args);
+        const jumbo: boolean =
+          props?.node?.jumboable ?? props?.jumboable ?? false;
+        // Discord usa ~40-48 px para jumbo, ~22 px para inline
+        const size = jumbo ? 48 : 22;
 
-          const jumboable = props?.node?.jumboable ?? props?.jumboable ?? false;
-          // Jumbo emojis in Discord render at ~3 rem ≈ 48 px
-          const size = jumboable ? 48 : 22;
-
-          return renderAppleEmoji(surrogate, size) ?? orig(...args);
-        })
-      );
+        return appleImg(surrogates, size) ?? orig(props);
+      });
     }
   }
 
-  // ── 3. EmojiPickerListRow / picker cells ─────────────────────────────────
-  //    The picker uses spritesheets by default. We patch the cell component so
-  //    each emoji in the grid shows the Apple image instead of the Twemoji
-  //    spritesheet slice.
-  //    Props shape varies; we look for the `emoji` prop with `surrogates`.
-  const PickerModule =
-    findByProps("EmojiPickerListRow") ??
-    findByProps("EmojiPickerCell") ??
-    findByProps("emojiPickerCell");
-
-  if (PickerModule) {
-    const cellKey = Object.keys(PickerModule).find((k) =>
-      /cell|row|item/i.test(k)
-    );
-
-    if (cellKey) {
-      unpatchers.push(
-        patcher.before(PickerModule, cellKey, (args) => {
-          // We can't easily swap the whole cell without risking broken tap
-          // handlers; instead, inject a custom `renderEmoji` helper into props
-          // so the cell uses our image renderer.
-          const [props] = args as [Record<string, unknown>];
-          if (props && typeof props === "object") {
-            props.__appleEmojiRenderer = (surrogate: string, size = 32) =>
-              renderAppleEmoji(surrogate, size);
-          }
-        })
-      );
-    }
-  }
-
-  // ── 4. Reaction emoji ────────────────────────────────────────────────────
-  //    Reactions render a smaller emoji (typically ~20 px).
-  const ReactionModule =
+  // ── 3. Reações ───────────────────────────────────────────────────────────
+  // Props: { emoji: { surrogates: string }, emojiSize?: number }
+  const reactionMod =
     findByProps("EmojiReaction") ??
     findByProps("ReactionEmoji") ??
     findByProps("MessageReaction");
 
-  if (ReactionModule) {
-    const reactionEmojiKey = Object.keys(ReactionModule).find((k) =>
+  if (reactionMod) {
+    const key = Object.keys(reactionMod).find((k) =>
       /reaction|emoji/i.test(k)
     );
 
-    if (reactionEmojiKey) {
-      unpatchers.push(
-        patcher.instead(ReactionModule, reactionEmojiKey, (args, orig) => {
-          const [props] = args as [
-            { emoji?: { surrogates?: string }; emojiSize?: number }
-          ];
-          const surrogate = props?.emoji?.surrogates;
-          if (!surrogate) return orig(...args);
+    if (key) {
+      tryPatch(reactionMod, key, ([props], orig) => {
+        const surrogates: string | undefined = props?.emoji?.surrogates;
+        if (!surrogates) return orig(props);
 
-          const size = props?.emojiSize ?? 20;
-          return renderAppleEmoji(surrogate, size) ?? orig(...args);
-        })
-      );
+        const size: number = props?.emojiSize ?? 20;
+        return appleImg(surrogates, size) ?? orig(props);
+      });
+    }
+  }
+
+  // ── 4. Picker (seletor de emojis) ────────────────────────────────────────
+  // O picker renderiza cada emoji numa grid. O componente de célula recebe
+  // { emoji: { surrogates } }. Tentamos substituir só o conteúdo visual,
+  // preservando os tap handlers clonando o elemento original.
+  const pickerMod =
+    findByProps("EmojiPickerCell") ??
+    findByProps("EmojiPickerListRow") ??
+    findByProps("emojiPickerCell");
+
+  if (pickerMod) {
+    const key = Object.keys(pickerMod).find((k) =>
+      /cell|item|emoji/i.test(k)
+    );
+
+    if (key && typeof pickerMod[key] === "function") {
+      tryPatch(pickerMod, key, ([props], orig) => {
+        const surrogates: string | undefined = props?.emoji?.surrogates;
+        if (!surrogates) return orig(props);
+
+        const img = appleImg(surrogates, 32);
+        if (!img) return orig(props);
+
+        try {
+          const original = orig(props);
+          if (!original) return img;
+          return React.cloneElement(original, {}, img);
+        } catch {
+          return img;
+        }
+      });
     }
   }
 }
 
-// ─── Entry point ─────────────────────────────────────────────────────────────
+// ─── Entry point ──────────────────────────────────────────────────────────────
 
-patchEmojiComponents();
+init();
 
 export const onUnload = () => {
-  for (const unpatch of unpatchers) unpatch();
+  for (const up of unpatchers) up();
   unpatchers.length = 0;
 };
