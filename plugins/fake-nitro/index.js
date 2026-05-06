@@ -1,8 +1,8 @@
 module.exports = {
     onLoad: function () {
-        console.log("[FakeNitro] onLoad chamado!");
+        console.log("[EllyNitro] onLoad chamado!");
     },
     onUnload: function () {
-        console.log("[FakeNitro] onUnload chamado!");
+        console.log("[EllyNitro] onUnload chamado!");
     },
 };
