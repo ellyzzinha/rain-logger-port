@@ -1,12 +1,12 @@
 {
-  "name": "FakeNitro Unificado",
-  "description": "freemoji + freestickers + full spoofing (lógica rain).",
+  "name": "FakeNitro Teste",
+  "description": "teste de isolamento",
   "authors": [
     {
       "name": "ellyzzinha",
-      "id": "seu_id_do_discord_aqui"
+      "id": "123456789"
     }
   ],
   "main": "index.tsx",
-  "hash": "fakenitro-elly"
+  "hash": "fakenitro-teste"
 }
