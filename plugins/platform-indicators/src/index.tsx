@@ -3,8 +3,8 @@ import { findByName, findByProps, findByStoreName, findByTypeName, findByTypeNam
 import { findInReactTree } from "@vendetta/utils";
 import { getAssetIDByName } from "@vendetta/ui/assets";
 import { storage } from "@vendetta/plugin";
-import React from "react";
-import { ReactNative } from "@vendetta/metro/common";
+// ✅ React DEVE vir do metro/common no Vendetta
+import { React, ReactNative } from "@vendetta/metro/common";
 
 import StatusIcons from "./StatusIcons";
 import PresenceUpdatedContainer from "./PresenceUpdatedContainer";
@@ -16,139 +16,160 @@ let unpatches: Array<() => void> = [];
 
 export default {
     onLoad: () => {
-        storage.dmTopBar ??= true;
-        storage.userList ??= true;
-        storage.profileUsername ??= true;
+        storage.dmTopBar          ??= true;
+        storage.userList          ??= true;
+        storage.profileUsername   ??= true;
         storage.removeDefaultMobile ??= true;
-        storage.fallbackColors ??= false;
+        storage.fallbackColors    ??= false;
 
         const debugLabels = false;
 
-        // DM top bar
+        // ── DM top bar ────────────────────────────────────────────────
         unpatches.push(patcher.after("default", findByName("ChannelHeader", false), (args, res) => {
             if (!storage.dmTopBar) return;
-            if (!(res.type?.type?.name === "PrivateChannelHeader")) return;
+            if (res?.type?.type?.name !== "PrivateChannelHeader") return;
 
-            patcher.after("type", res.type, (args, res) => {
-                if (!res.props?.children?.props?.children) return;
-                const userId = findInReactTree(res, m => m.props?.user?.id)?.props?.user?.id;
+            patcher.after("type", res.type, (_args, res) => {
+                if (!res?.props?.children?.props?.children) return;
+
+                const userId = findInReactTree(res, m => m?.props?.user?.id)?.props?.user?.id;
                 if (!userId) return;
 
                 const dmTopBar = res.props?.children;
-                if (!findInReactTree(res, m => m.key === "DMTabsV2Header")) {
-                    if (dmTopBar.props?.children?.props?.children[1]) {
-                        if (typeof dmTopBar.props?.children?.props?.children[1]?.type === "function") {
-                            const titleThing = dmTopBar.props?.children?.props?.children[1];
 
-                            const unpatchTV2HdrV2 = patcher.after("type", titleThing, (args, res) => {
-                                unpatchTV2HdrV2();
-                                if (!findInReactTree(res, c => c.key === "DMTabsV2Header-v2")) {
-                                    res.props.children[0].props.children.push(
-                                        <PresenceUpdatedContainer key="DMTabsV2Header-v2">
-                                            {debugLabels ? <Text>DTV2H-v2</Text> : <StatusIcons userId={userId} />}
-                                        </PresenceUpdatedContainer>
-                                    );
-                                }
-                            });
-                        } else {
-                            const arrowId = getAssetIDByName("arrow-right");
-                            const container1 = findInReactTree(dmTopBar, m => m.props?.children[1]?.props?.source === arrowId);
+                if (!findInReactTree(res, m => m?.key === "DMTabsV2Header")) {
+                    const child1 = dmTopBar?.props?.children?.props?.children?.[1];
+                    if (!child1) return;
 
-                            container1?.props?.children?.push(
-                                <View key="DMTabsV2Header" style={{ flexDirection: "row", justifyContent: "center", alignContent: "flex-start" }}>
-                                    <View key="DMTabsV2HeaderIcons" style={{ flexDirection: "row" }} />
-                                </View>
+                    if (typeof child1?.type === "function") {
+                        const unpatchInner = patcher.after("type", child1, (_a, r) => {
+                            unpatchInner();
+                            if (findInReactTree(r, c => c?.key === "DMTabsV2Header-v2")) return;
+
+                            r?.props?.children?.[0]?.props?.children?.push(
+                                React.createElement(PresenceUpdatedContainer, { key: "DMTabsV2Header-v2" },
+                                    debugLabels
+                                        ? React.createElement(Text, null, "DTV2H-v2")
+                                        : React.createElement(StatusIcons, { userId })
+                                )
                             );
-                        }
+                        });
+                    } else {
+                        const arrowId = getAssetIDByName("arrow-right");
+                        const container1 = findInReactTree(dmTopBar, m =>
+                            m?.props?.children?.[1]?.props?.source === arrowId
+                        );
+                        container1?.props?.children?.push(
+                            React.createElement(View, { key: "DMTabsV2Header", style: { flexDirection: "row", justifyContent: "center", alignContent: "flex-start" } },
+                                React.createElement(View, { key: "DMTabsV2HeaderIcons", style: { flexDirection: "row" } })
+                            )
+                        );
                     }
                 }
 
-                const topIcons = findInReactTree(res, m => m.key === "DMTabsV2HeaderIcons");
+                const topIcons = findInReactTree(res, m => m?.key === "DMTabsV2HeaderIcons");
                 if (topIcons) {
-                    topIcons.props.children = <StatusIcons userId={userId} />;
+                    topIcons.props.children = React.createElement(StatusIcons, { userId });
                 }
             });
         }));
 
-        // User profile
+        // ── User profile ──────────────────────────────────────────────
         const UserProfileContent = findByTypeName("UserProfileContent");
-        unpatches.push(patcher.after("type", UserProfileContent, (args, res) => {
-            const primaryInfo = findInReactTree(res, c => c?.type?.name === "PrimaryInfo");
-            patcher.after("type", primaryInfo, (args, res) => {
-                if (res?.type?.name === "UserProfilePrimaryInfo") {
-                    patcher.after("type", res, (args, res) => {
-                        const displayName = findInReactTree(res, c => c?.type?.name === "DisplayName");
-                        patcher.after("type", displayName, (args, res) => {
-                            const userId = args[0]?.user?.id;
-                            if (userId) {
-                                res.props.children.push(
-                                    <PresenceUpdatedContainer key="UserProfileIcons">
-                                        <StatusIcons userId={userId} />
-                                    </PresenceUpdatedContainer>
-                                );
-                            }
+        if (UserProfileContent) {
+            unpatches.push(patcher.after("type", UserProfileContent, (_args, res) => {
+                const primaryInfo = findInReactTree(res, c => c?.type?.name === "PrimaryInfo");
+                if (!primaryInfo) return;
+
+                patcher.after("type", primaryInfo, (_a, r) => {
+                    if (r?.type?.name !== "UserProfilePrimaryInfo") return;
+
+                    patcher.after("type", r, (_b, r2) => {
+                        const displayName = findInReactTree(r2, c => c?.type?.name === "DisplayName");
+                        if (!displayName) return;
+
+                        patcher.after("type", displayName, (dArgs, dRes) => {
+                            const userId = dArgs?.[0]?.user?.id;
+                            if (!userId) return;
+
+                            dRes?.props?.children?.push(
+                                React.createElement(PresenceUpdatedContainer, { key: "UserProfileIcons" },
+                                    React.createElement(StatusIcons, { userId })
+                                )
+                            );
                         });
                     });
-                }
-            });
-        }));
+                });
+            }));
+        }
 
-        // DisplayName patch
+        // ── DisplayName patch ─────────────────────────────────────────
         const DisplayName = findByProps("DisplayName");
-        unpatches.push(patcher.after("DisplayName", DisplayName, (args, res) => {
-            const user = args[0]?.user;
-            if (!user?.id) return;
-            if (!res) return;
-            if (!storage.profileUsername) return;
-            res.props?.children?.props?.children[0]?.props?.children?.push(<StatusIcons userId={user.id} />);
-        }));
+        if (DisplayName) {
+            unpatches.push(patcher.after("DisplayName", DisplayName, (args, res) => {
+                const user = args?.[0]?.user;
+                if (!user?.id || !res || !storage.profileUsername) return;
 
-        // Hide default mobile indicator
+                res.props?.children?.props?.children?.[0]?.props?.children?.push(
+                    React.createElement(StatusIcons, { userId: user.id })
+                );
+            }));
+        }
+
+        // ── Hide default mobile indicator ─────────────────────────────
         const Status = findByName("Status", false);
-        unpatches.push(patcher.before("default", Status, (args) => {
-            if (!args?.[0]) return;
-            if (!storage.removeDefaultMobile) return;
-            args[0].isMobileOnline = false;
-        }));
+        if (Status) {
+            unpatches.push(patcher.before("default", Status, (args) => {
+                if (!args?.[0] || !storage.removeDefaultMobile) return;
+                args[0].isMobileOnline = false;
+            }));
+        }
 
-        // Guild member row
+        // ── Guild member row ──────────────────────────────────────────
         const Rows = findByProps("GuildMemberRow");
         if (Rows?.GuildMemberRow) {
             unpatches.push(patcher.after("type", Rows.GuildMemberRow, ([{ user }], res) => {
                 if (!storage.userList) return;
-                if (!findInReactTree(res, c => c.key === "GuildMemberRowStatusIconsView")) {
-                    const row = findInReactTree(res, c => c.props?.style?.flexDirection === "row");
-                    if (row) {
-                        row.props.children.splice(2, 0,
-                            <View key="GuildMemberRowStatusIconsView" style={{ flexDirection: "row" }}>
-                                {debugLabels ? <Text>GMRSIV</Text> : <StatusIcons userId={user.id} />}
-                            </View>
-                        );
-                    }
-                }
+                if (findInReactTree(res, c => c?.key === "GuildMemberRowStatusIconsView")) return;
+
+                const row = findInReactTree(res, c => c?.props?.style?.flexDirection === "row");
+                if (!row) return;
+
+                row.props.children.splice(2, 0,
+                    React.createElement(View, { key: "GuildMemberRowStatusIconsView", style: { flexDirection: "row" } },
+                        debugLabels
+                            ? React.createElement(Text, null, "GMRSIV")
+                            : React.createElement(StatusIcons, { userId: user.id })
+                    )
+                );
             }));
         }
 
-        // User row (member list / friends list)
+        // ── User row (member list / friends list) ─────────────────────
         let patchedAvatar = false;
+
         const rowPatch = ([{ user }], res) => {
             if (!storage.userList) return;
-            if (!findInReactTree(res?.props?.label, c => c.key === "TabsV2MemberListStatusIconsView")) {
-                res.props.label = (
-                    <View style={{ flexDirection: "row", alignItems: "center" }} key="TabsV2MemberListStatusIconsView">
-                        {res.props.label}
-                        <View key="TabsV2MemberListStatusIconsView" style={{ flexDirection: "row" }}>
-                            {debugLabels ? <Text>TV2MLSIV</Text> : <StatusIcons userId={user.id} />}
-                        </View>
-                    </View>
-                );
+            if (findInReactTree(res?.props?.label, c => c?.key === "TabsV2MemberListStatusIconsView")) return;
 
-                if (!patchedAvatar && res.props.icon?.type) {
-                    unpatches.push(patcher.before("type", res.props.icon.type, (args) => {
-                        if (storage.removeDefaultMobile) args[0].isMobileOnline = false;
-                    }));
-                    patchedAvatar = true;
-                }
+            res.props.label = React.createElement(
+                View,
+                { style: { flexDirection: "row", alignItems: "center" }, key: "TabsV2MemberListStatusIconsView" },
+                res.props.label,
+                React.createElement(
+                    View,
+                    { key: "TabsV2MemberListStatusIconsViewInner", style: { flexDirection: "row" } },
+                    debugLabels
+                        ? React.createElement(Text, null, "TV2MLSIV")
+                        : React.createElement(StatusIcons, { userId: user.id })
+                )
+            );
+
+            if (!patchedAvatar && res.props?.icon?.type) {
+                unpatches.push(patcher.before("type", res.props.icon.type, (args) => {
+                    if (storage.removeDefaultMobile) args[0].isMobileOnline = false;
+                }));
+                patchedAvatar = true;
             }
         };
 
@@ -156,22 +177,29 @@ export default {
             unpatches.push(patcher.after("type", UserRow, rowPatch))
         );
 
-        // DM list
+        // ── DM list ───────────────────────────────────────────────────
         const MessagesItemChannelContent = findByTypeName("MessagesItemChannelContent");
-        unpatches.push(patcher.after("type", MessagesItemChannelContent, (args, res) => {
-            const channel = args[0]?.channel;
-            if (channel?.recipients?.length === 1) {
+        if (MessagesItemChannelContent) {
+            unpatches.push(patcher.after("type", MessagesItemChannelContent, (args, res) => {
+                const channel = args?.[0]?.channel;
+                if (channel?.recipients?.length !== 1) return;
+
                 const userId = channel.recipients[0];
-                const textContainer = findInReactTree(res, m => m.props?.children?.[0]?.props?.variant === "redesign/channel-title/semibold");
-                if (textContainer) {
-                    textContainer.props.children.push(
-                        <View key="TabsV2RedesignDMListIcons" style={{ flexDirection: "row" }}>
-                            {debugLabels ? <Text>TV2RDMLI</Text> : <StatusIcons userId={userId} />}
-                        </View>
-                    );
-                }
-            }
-        }));
+                const textContainer = findInReactTree(res, m =>
+                    m?.props?.children?.[0]?.props?.variant === "redesign/channel-title/semibold"
+                );
+
+                if (!textContainer) return;
+
+                textContainer.props.children.push(
+                    React.createElement(View, { key: "TabsV2RedesignDMListIcons", style: { flexDirection: "row" } },
+                        debugLabels
+                            ? React.createElement(Text, null, "TV2RDMLI")
+                            : React.createElement(StatusIcons, { userId })
+                    )
+                );
+            }));
+        }
     },
 
     onUnload: () => {
@@ -179,5 +207,5 @@ export default {
         unpatches = [];
     },
 
-    settings: () => <Settings />,
+    settings: () => React.createElement(Settings),
 };
