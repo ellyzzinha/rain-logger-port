@@ -10,7 +10,6 @@ const RowManager = findByName("RowManager");
 
 import { storage } from "@vendetta/plugin";
 
-// Stores original content before edits: messageId -> originalContent
 const editHistory = new Map<string, string>();
 
 patches.push(before("dispatch", FluxDispatcher, ([event]) => {
@@ -46,7 +45,6 @@ patches.push(before("dispatch", FluxDispatcher, ([event]) => {
     }];
   }
 
-  // Intercept edits to save original content before overwrite
   if (event.type === "MESSAGE_UPDATE" && event.message && !event.__vml_cleanup) {
     const { channel_id, id, content } = event.message;
     if (!channel_id || !id || content == null) return event;
@@ -55,7 +53,6 @@ patches.push(before("dispatch", FluxDispatcher, ([event]) => {
     const existing = channel?.get(id);
 
     if (existing && existing.content && existing.content !== content) {
-      // Only save the very first original (before any edit chain)
       if (!editHistory.has(id)) {
         editHistory.set(id, existing.content);
       }
@@ -68,7 +65,6 @@ patches.push(after("generate", RowManager.prototype, ([data], row) => {
 
   const msg = data.message;
 
-  // Deleted message styling (rain visual identity)
   if (msg.__vml_deleted) {
     row.message.edited = "this message was deleted";
     row.backgroundHighlight ??= {};
@@ -76,13 +72,12 @@ patches.push(after("generate", RowManager.prototype, ([data], row) => {
     row.backgroundHighlight.gutterColor = ReactNative.processColor("#F04747");
   }
 
-  // Edited message: inject original content as a visual hint
   if (!msg.__vml_deleted && editHistory.has(msg.id)) {
     const original = editHistory.get(msg.id);
-    row.message.edited = `before: ${original}`;
+    row.message.edited = original;
     row.backgroundHighlight ??= {};
-    row.backgroundHighlight.backgroundColor = ReactNative.processColor("#7b4ff41a"); // purple tint
-    row.backgroundHighlight.gutterColor = ReactNative.processColor("#7B4FF4");      // purple gutter
+    row.backgroundHighlight.backgroundColor = ReactNative.processColor("#7b4ff41a");
+    row.backgroundHighlight.gutterColor = ReactNative.processColor("#7B4FF4");
   }
 }));
 
