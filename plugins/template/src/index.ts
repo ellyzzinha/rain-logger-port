@@ -10,6 +10,9 @@ const RowManager = findByName("RowManager");
 
 import { storage } from "@vendetta/plugin";
 
+// Stores original content before edits: messageId -> originalContent
+const editHistory = new Map<string, string>();
+
 patches.push(before("dispatch", FluxDispatcher, ([event]) => {
   if (event.type === "MESSAGE_DELETE") {
     if (event.__vml_cleanup) return event;
@@ -42,16 +45,44 @@ patches.push(before("dispatch", FluxDispatcher, ([event]) => {
       type: "MESSAGE_UPDATE",
     }];
   }
+
+  // Intercept edits to save original content before overwrite
+  if (event.type === "MESSAGE_UPDATE" && event.message && !event.__vml_cleanup) {
+    const { channel_id, id, content } = event.message;
+    if (!channel_id || !id || content == null) return event;
+
+    const channel = ChannelMessages.get(channel_id);
+    const existing = channel?.get(id);
+
+    if (existing && existing.content && existing.content !== content) {
+      // Only save the very first original (before any edit chain)
+      if (!editHistory.has(id)) {
+        editHistory.set(id, existing.content);
+      }
+    }
+  }
 }));
 
 patches.push(after("generate", RowManager.prototype, ([data], row) => {
   if (data.rowType !== 1) return;
-  if (data.message.__vml_deleted) {
-    // Rain visual identity
+
+  const msg = data.message;
+
+  // Deleted message styling (rain visual identity)
+  if (msg.__vml_deleted) {
     row.message.edited = "this message was deleted";
     row.backgroundHighlight ??= {};
-    row.backgroundHighlight.backgroundColor = ReactNative.processColor("#f047471a"); // rgba(240, 71, 71, 0.1)
+    row.backgroundHighlight.backgroundColor = ReactNative.processColor("#f047471a");
     row.backgroundHighlight.gutterColor = ReactNative.processColor("#F04747");
+  }
+
+  // Edited message: inject original content as a visual hint
+  if (!msg.__vml_deleted && editHistory.has(msg.id)) {
+    const original = editHistory.get(msg.id);
+    row.message.edited = `before: ${original}`;
+    row.backgroundHighlight ??= {};
+    row.backgroundHighlight.backgroundColor = ReactNative.processColor("#7b4ff41a"); // purple tint
+    row.backgroundHighlight.gutterColor = ReactNative.processColor("#7B4FF4");      // purple gutter
   }
 }));
 
@@ -72,6 +103,7 @@ patches.push(after("default", MessageRecord, ([props], record) => {
 
 export const onUnload = () => {
   patches.forEach((unpatch) => unpatch());
+  editHistory.clear();
 
   for (const channelId in ChannelMessages._channelMessages) {
     for (const message of ChannelMessages._channelMessages[channelId]._array) {
