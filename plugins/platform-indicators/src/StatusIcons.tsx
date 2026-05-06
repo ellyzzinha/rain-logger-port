@@ -36,7 +36,7 @@ function getUserStatuses(userId: string): Record<string, string> | undefined {
     if (userId === currentUserId) {
         const sessions = SessionsStore.getSessions() as Record
             string,
-            { clientInfo: { client: string }; status: string }
+            { clientInfo: { client: string }, status: string }
         >;
         return Object.values(sessions).reduce<Record<string, string>>((acc, curr) => {
             if (curr.clientInfo.client !== "unknown") acc[curr.clientInfo.client] = curr.status;
