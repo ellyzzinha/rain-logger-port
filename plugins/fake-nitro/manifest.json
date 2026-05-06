@@ -2,5 +2,5 @@
   "name": "elly-nitro",
   "description": "teste v3",
   "authors": [{ "name": "elly", "id": "1" }],
-  "main": "index.tsx"
+  "main": "index.js"
 }
