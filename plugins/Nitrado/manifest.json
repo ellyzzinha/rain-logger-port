@@ -1,1 +1,14 @@
-
+{
+    "name": "Nitrado",
+    "description": "Emojis e figurinhas de outros servidores sem Nitro. Combina FakeMoji, FreeStickers e FakeNitro.",
+    "authors": [
+        {
+            "name": "ellyzzinha",
+            "id": "0"
+        }
+    ],
+    "main": "index.js",
+    "vendetta": {
+        "icon": "img_nitro_emojis"
+    }
+}
