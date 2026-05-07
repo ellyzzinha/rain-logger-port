@@ -1,9 +1,5 @@
-(function(s,y){"use strict";let t=null,e=null,a=!1;function l(){if(t=y.findByProps("updateRows","clearRows"),!t){alert("rowMod null");return}e=t.updateRows,t.updateRows=function(n,...d){if(!a&&Array.isArray(n)&&n.length>0){a=!0;const r=n[0],p=Object.keys(r??{}).join(", "),c=r?.message,w=Object.keys(c??{}).join(", "),u=c?.content,o=Array.isArray(u)?u[0]:null,f=Object.keys(o??{}).join(", ");alert("row.type: "+r?.type+`
-row keys: `+p+`
-
-message keys: `+w+`
-
-content[0] keys: `+f+`
-content[0].type: `+o?.type+`
-content[0].surrogate: `+o?.surrogate+`
-content[0].content: `+o?.content)}return e.apply(this,[n,...d])}}l();const i=function(){t&&e&&(t.updateRows=e)};return s.onUnload=i,s})({},vendetta.metro);
+(function(r,l){"use strict";let t=null,e=null,s=!1;function a(){if(t=l.findByProps("updateRows","clearRows"),!t){alert("rowMod null");return}e=t.updateRows,t.updateRows=function(...o){if(!s){s=!0;const n=o[0];alert("args.length: "+o.length+`
+rows type: `+typeof n+`
+isArray: `+Array.isArray(n)+`
+rows length: `+(Array.isArray(n)?n.length:"N/A")+`
+keys: `+Object.keys(n??{}).slice(0,10).join(", "))}return e.apply(this,o)}}a();const u=function(){t&&e&&(t.updateRows=e)};return r.onUnload=u,r})({},vendetta.metro);
