@@ -11,21 +11,24 @@ function init() {
     origUpdateRows = rowMod.updateRows;
 
     rowMod.updateRows = function(rows: any, ...rest: any[]) {
-        if (!logged) {
+        if (!logged && Array.isArray(rows) && rows.length > 0) {
             logged = true;
-            try {
-                const sample = Array.isArray(rows) ? rows[0] : rows;
-                alert(
-                    "updateRows chamado!\n" +
-                    "rows type: " + typeof rows + "\n" +
-                    "isArray: " + Array.isArray(rows) + "\n" +
-                    "sample keys: " + Object.keys(sample ?? {}).join(", ") + "\n" +
-                    "sample.type: " + sample?.type + "\n" +
-                    "sample JSON: " + JSON.stringify(sample)?.slice(0, 300)
-                );
-            } catch(e: any) {
-                alert("erro ao logar: " + e?.message);
-            }
+            const row = rows[0];
+            const rowKeys = Object.keys(row ?? {}).join(", ");
+            const msg = row?.message;
+            const msgKeys = Object.keys(msg ?? {}).join(", ");
+            const content = msg?.content;
+            const firstNode = Array.isArray(content) ? content[0] : null;
+            const nodeKeys = Object.keys(firstNode ?? {}).join(", ");
+            alert(
+                "row.type: " + row?.type + "\n" +
+                "row keys: " + rowKeys + "\n\n" +
+                "message keys: " + msgKeys + "\n\n" +
+                "content[0] keys: " + nodeKeys + "\n" +
+                "content[0].type: " + firstNode?.type + "\n" +
+                "content[0].surrogate: " + firstNode?.surrogate + "\n" +
+                "content[0].content: " + firstNode?.content
+            );
         }
         return origUpdateRows.apply(this, [rows, ...rest]);
     };
