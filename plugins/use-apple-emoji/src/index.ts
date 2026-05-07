@@ -1,42 +1,42 @@
 import { findByProps } from "@vendetta/metro";
 import { React, ReactNative } from "@vendetta/metro/common";
 
-let origEmojiReact: any = null;
-let emojiRule: any = null;
+let origCreateReactRules: any = null;
+let parseMod: any = null;
 
 function init() {
-    const parseMod = findByProps("defaultRules", "createReactRules");
-    if (!parseMod?.defaultRules) {
-        alert("parseMod não encontrado");
+    parseMod = findByProps("defaultRules", "createReactRules");
+    if (!parseMod) {
+        alert("parseMod null");
         return;
     }
 
-    const rules = parseMod.defaultRules;
+    const keys = Object.keys(parseMod).join(", ");
 
-    if (!rules.emoji) {
-        alert("rules.emoji não existe");
-        return;
-    }
+    // Testa se createReactRules é função
+    const isFunc = typeof parseMod.createReactRules === "function";
 
-    emojiRule = rules.emoji;
-    origEmojiReact = rules.emoji.react;
-
-    let logged = false;
-
-    rules.emoji.react = (node: any, output: any, state: any) => {
-        // Loga só uma vez para não spammar
-        if (!logged) {
-            logged = true;
-            alert("emoji node keys:\n" + Object.keys(node ?? {}).join(", ") + "\n\nnode JSON:\n" + JSON.stringify(node)?.slice(0, 300));
+    // Testa se defaultRules === o que createReactRules retorna
+    let sameObj = false;
+    let createdKeys = "";
+    if (isFunc) {
+        try {
+            const created = parseMod.createReactRules();
+            sameObj = created === parseMod.defaultRules;
+            createdKeys = Object.keys(created ?? {}).slice(0, 6).join(", ");
+        } catch(e: any) {
+            createdKeys = "erro: " + e?.message;
         }
-        return origEmojiReact(node, output, state);
-    };
+    }
+
+    alert(
+        "parseMod keys: " + keys +
+        "\n\ncreateReactRules é função: " + isFunc +
+        "\ncreated === defaultRules: " + sameObj +
+        "\ncreated keys: " + createdKeys
+    );
 }
 
 init();
 
-export const onUnload = () => {
-    if (emojiRule && origEmojiReact) {
-        emojiRule.react = origEmojiReact;
-    }
-};
+export const onUnload = () => {};
