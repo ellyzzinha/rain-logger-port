@@ -1,27 +1,48 @@
 import { patcher } from "@vendetta";
-import { findByProps } from "@vendetta/metro";
+import { findByProps, findByName } from "@vendetta/metro";
 import { React, ReactNative } from "@vendetta/metro/common";
 
 const unpatchers: (() => void)[] = [];
 
 function init() {
-    const emojiMod = findByProps("Emoji", "asUnicodeEmoji");
+    // Tenta achar por nome (componentes React exportados pelo nome)
+    const byName = [
+        "Emoji",
+        "EmojiComponent", 
+        "NativeEmoji",
+        "EmojiText",
+        "ChatEmoji",
+        "ReactionEmoji",
+        "MessageEmoji",
+    ].map(n => {
+        try { return { name: n, mod: findByName(n, { interop: false }) }; }
+        catch { return { name: n, mod: null }; }
+    });
 
-    if (!emojiMod) {
-        alert("emojiMod NULL");
-        return;
-    }
+    const found = byName.filter(x => x.mod != null);
+    const notFound = byName.filter(x => x.mod == null);
 
-    const info = Object.keys(emojiMod).map(k => {
-        const v = emojiMod[k];
-        const type = typeof v;
-        const extra = type === "function"
-            ? ` | body: ${v.toString().slice(0, 100)}`
-            : ` | val: ${JSON.stringify(v)?.slice(0, 60)}`;
-        return `${k} [${type}]${extra}`;
-    }).join("\n\n");
+    // Tenta achar módulos com renderEmoji / renderUnicodeEmoji
+    const renderMod = findByProps("renderEmoji") ?? null;
+    const renderUniMod = findByProps("renderUnicodeEmoji") ?? null;
+    const unicodeMod = findByProps("convertSurrogateToCodePoint") ?? null;
+    const nativeMod = findByProps("getEmojiImageURL") ?? null;
+    const spritesMod = findByProps("getEmojiSprite") ?? null;
 
-    alert("emojiMod:\n\n" + info);
+    const msg = [
+        "=== findByName ===",
+        found.map(x => `✅ ${x.name}`).join("\n") || "nenhum",
+        notFound.map(x => `❌ ${x.name}`).join("\n"),
+        "",
+        "=== outros módulos ===",
+        `renderEmoji: ${renderMod ? "✅ keys: " + Object.keys(renderMod).join(", ") : "❌"}`,
+        `renderUnicodeEmoji: ${renderUniMod ? "✅ keys: " + Object.keys(renderUniMod).join(", ") : "❌"}`,
+        `convertSurrogateToCodePoint: ${unicodeMod ? "✅ keys: " + Object.keys(unicodeMod).join(", ") : "❌"}`,
+        `getEmojiImageURL: ${nativeMod ? "✅ keys: " + Object.keys(nativeMod).join(", ") : "❌"}`,
+        `getEmojiSprite: ${spritesMod ? "✅ keys: " + Object.keys(spritesMod).join(", ") : "❌"}`,
+    ].join("\n");
+
+    alert(msg);
 }
 
 init();
