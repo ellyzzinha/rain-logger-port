@@ -29,8 +29,9 @@ let unpatch: () => void;
 
 export function onLoad() {
     unpatch = before("updateRows", RNChatModule, (args) => {
-        const rows = JSON.parse(args[1]);
         try {
+            const rows = Array.isArray(args[0]) ? args[0] : args[1];
+            if (!Array.isArray(rows)) return;
             for (const row of rows) {
                 if (row.type === 1 && row.message?.content)
                     iterate(row.message.content);
@@ -38,7 +39,6 @@ export function onLoad() {
         } catch (e: any) {
             console.error(`[use-apple-emoji]`, e.stack);
         }
-        args[1] = JSON.stringify(rows);
     });
 }
 
