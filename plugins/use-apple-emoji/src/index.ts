@@ -10,27 +10,19 @@ function init() {
 
     origUpdateRows = rowMod.updateRows;
 
-    rowMod.updateRows = function(rows: any, ...rest: any[]) {
-        if (!logged && Array.isArray(rows) && rows.length > 0) {
+    rowMod.updateRows = function(...args: any[]) {
+        if (!logged) {
             logged = true;
-            const row = rows[0];
-            const rowKeys = Object.keys(row ?? {}).join(", ");
-            const msg = row?.message;
-            const msgKeys = Object.keys(msg ?? {}).join(", ");
-            const content = msg?.content;
-            const firstNode = Array.isArray(content) ? content[0] : null;
-            const nodeKeys = Object.keys(firstNode ?? {}).join(", ");
+            const rows = args[0];
             alert(
-                "row.type: " + row?.type + "\n" +
-                "row keys: " + rowKeys + "\n\n" +
-                "message keys: " + msgKeys + "\n\n" +
-                "content[0] keys: " + nodeKeys + "\n" +
-                "content[0].type: " + firstNode?.type + "\n" +
-                "content[0].surrogate: " + firstNode?.surrogate + "\n" +
-                "content[0].content: " + firstNode?.content
+                "args.length: " + args.length + "\n" +
+                "rows type: " + typeof rows + "\n" +
+                "isArray: " + Array.isArray(rows) + "\n" +
+                "rows length: " + (Array.isArray(rows) ? rows.length : "N/A") + "\n" +
+                "keys: " + Object.keys(rows ?? {}).slice(0, 10).join(", ")
             );
         }
-        return origUpdateRows.apply(this, [rows, ...rest]);
+        return origUpdateRows.apply(this, args);
     };
 }
 
