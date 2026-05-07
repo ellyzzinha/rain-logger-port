@@ -24,7 +24,7 @@ function appleURL(surrogate: string): string | null {
 function appleImg(surrogate: string, size: number): any {
     const url = appleURL(surrogate);
     if (!url) return null;
-    const RN = findByProps("Image", "View") ?? findByProps("Image") ?? null;
+    const RN = findByProps("Image", "View") ?? null;
     const Image = RN?.Image;
     if (!Image) return null;
     return React.createElement(Image, {
@@ -49,132 +49,94 @@ function tryPatch(
     } catch { }
 }
 
-// ── Diagnóstico ──────────────────────────────────────────────────────────────
-function runDiag() {
-    const checks: [string, string[]][] = [
-        ["NativeEmoji",        ["NativeEmoji"]],
-        ["EmojiComponent",     ["EmojiComponent"]],
-        ["renderNativeEmoji",  ["renderNativeEmoji"]],
-        ["renderEmoji",        ["renderEmoji"]],
-        ["Emoji+EmojiText",    ["Emoji", "EmojiText"]],
-        ["Emoji",              ["Emoji"]],
-        ["EmojiReaction",      ["EmojiReaction"]],
-        ["ReactionEmoji",      ["ReactionEmoji"]],
-        ["MessageReaction",    ["MessageReaction"]],
-        ["EmojiPickerCell",    ["EmojiPickerCell"]],
-        ["EmojiPickerListRow", ["EmojiPickerListRow"]],
-        ["emojiPickerCell",    ["emojiPickerCell"]],
-        ["Image+View",         ["Image", "View"]],
-    ];
-
-    const lines: string[] = [];
-    for (const [label, props] of checks) {
-        const found = findByProps(...props);
-        if (found) {
-            // mostra até 8 keys do módulo encontrado
-            const keys = Object.keys(found).slice(0, 8).join(", ");
-            lines.push(`✅ ${label}\n   keys: ${keys}`);
-        } else {
-            lines.push(`❌ ${label}`);
-        }
-    }
-
-    const msg = lines.join("\n\n");
-
-    // Tenta Alert nativo do React Native
-    try {
-        const { Alert } = findByProps("Alert") ?? (global as any).ReactNative ?? {};
-        if (Alert?.alert) {
-            Alert.alert("AppleEmoji Diag", msg);
-            return;
-        }
-    } catch { }
-
-    // Fallback: console (visível em Settings > Developer)
-    console.log("[AppleEmoji Diag]\n" + msg);
-}
-
 function init() {
-    runDiag();
+    // ── 1. Emoji (chat + reações) ─────────────────────────────────────────
+    // Diagnóstico confirmou: findByProps("Emoji") existe
+    // keys: default, DIVERSITY_SURROGATES, Emoji, asUnicodeEmoji
+    //
+    // `Emoji` é o componente de renderização.
+    // `asUnicodeEmoji` converte emoji object → surrogate string (útil para fallback).
+    // `default` provavelmente é o componente principal exportado.
 
-    const emojiMod =
-        findByProps("NativeEmoji") ??
-        findByProps("EmojiComponent") ??
-        findByProps("renderNativeEmoji");
+    const emojiMod = findByProps("Emoji", "asUnicodeEmoji");
 
     if (emojiMod) {
-        const key =
-            "NativeEmoji" in emojiMod ? "NativeEmoji" :
-            "EmojiComponent" in emojiMod ? "EmojiComponent" :
-            "renderNativeEmoji";
-        tryPatch(emojiMod, key, ([props], orig) => {
-            const surrogates = props?.emoji?.surrogates ?? props?.surrogates;
+        // Patcha o componente "Emoji" — usado no chat e nas reações
+        tryPatch(emojiMod, "Emoji", ([props], orig) => {
+            // Props possíveis dependendo do contexto:
+            // { emoji: { surrogates }, emojiSize, jumboable }
+            // { node: { surrogate, jumboable } }
+            const surrogates =
+                props?.emoji?.surrogates ??
+                props?.node?.surrogate ??
+                props?.surrogates;
+
             if (!surrogates) return orig(props);
-            const size = props?.emojiSize ?? props?.size ?? 24;
+
+            const jumbo =
+                props?.jumboable ??
+                props?.node?.jumboable ??
+                props?.emoji?.jumboable ??
+                false;
+
+            const size =
+                props?.emojiSize ??
+                props?.size ??
+                (jumbo ? 48 : 22);
+
+            return appleImg(surrogates, size) ?? orig(props);
+        });
+
+        // Patcha também o `default` export do módulo — em algumas versões
+        // do Discord mobile o componente principal fica no `default`
+        tryPatch(emojiMod, "default", ([props], orig) => {
+            const surrogates =
+                props?.emoji?.surrogates ??
+                props?.node?.surrogate ??
+                props?.surrogates;
+
+            if (!surrogates) return orig(props);
+
+            const jumbo =
+                props?.jumboable ??
+                props?.node?.jumboable ??
+                false;
+
+            const size = props?.emojiSize ?? props?.size ?? (jumbo ? 48 : 22);
             return appleImg(surrogates, size) ?? orig(props);
         });
     }
 
-    const nodeMod =
-        findByProps("renderEmoji") ??
-        findByProps("Emoji", "EmojiText") ??
-        findByProps("Emoji");
+    // ── 2. EmojiPickerListRow (seletor de emojis) ─────────────────────────
+    // Diagnóstico confirmou: findByProps("EmojiPickerListRow") existe
+    // keys: EmojiPickerListRow
+    //
+    // Renderiza uma linha inteira do picker. Cada célula dentro da linha
+    // recebe { emoji: { surrogates } }. Patchamos o componente da linha
+    // e injetamos um renderizador customizado via props.
 
-    if (nodeMod) {
-        const key = Object.keys(nodeMod).find(
-            (k) => typeof nodeMod[k] === "function" && /^(emoji|Emoji|renderEmoji)/i.test(k)
-        );
-        if (key) {
-            tryPatch(nodeMod, key, ([props], orig) => {
-                const surrogates =
-                    props?.node?.surrogate ??
-                    props?.surrogates ??
-                    props?.emoji?.surrogates;
-                if (!surrogates) return orig(props);
-                const jumbo = props?.node?.jumboable ?? props?.jumboable ?? false;
-                return appleImg(surrogates, jumbo ? 48 : 22) ?? orig(props);
-            });
-        }
-    }
-
-    const reactionMod =
-        findByProps("EmojiReaction") ??
-        findByProps("ReactionEmoji") ??
-        findByProps("MessageReaction");
-
-    if (reactionMod) {
-        const key = Object.keys(reactionMod).find((k) => /reaction|emoji/i.test(k));
-        if (key) {
-            tryPatch(reactionMod, key, ([props], orig) => {
-                const surrogates = props?.emoji?.surrogates;
-                if (!surrogates) return orig(props);
-                return appleImg(surrogates, props?.emojiSize ?? 20) ?? orig(props);
-            });
-        }
-    }
-
-    const pickerMod =
-        findByProps("EmojiPickerCell") ??
-        findByProps("EmojiPickerListRow") ??
-        findByProps("emojiPickerCell");
+    const pickerMod = findByProps("EmojiPickerListRow");
 
     if (pickerMod) {
-        const key = Object.keys(pickerMod).find((k) => /cell|item|emoji/i.test(k));
-        if (key && typeof pickerMod[key] === "function") {
-            tryPatch(pickerMod, key, ([props], orig) => {
-                const surrogates = props?.emoji?.surrogates;
-                if (!surrogates) return orig(props);
-                const img = appleImg(surrogates, 32);
-                if (!img) return orig(props);
-                try {
-                    const original = orig(props);
-                    if (!original) return img;
-                    return React.cloneElement(original, {}, img);
-                } catch {
-                    return img;
-                }
-            });
-        }
+        tryPatch(pickerMod, "EmojiPickerListRow", ([props], orig) => {
+            // Injeta função de render para cada célula da linha
+            const newProps = {
+                ...props,
+                // Alguns builds do Discord usam renderEmoji ou emojiRenderer
+                // como prop de render customizável na row
+                renderEmoji: (emojiProps: any) => {
+                    const surrogates = emojiProps?.emoji?.surrogates;
+                    if (!surrogates) return null;
+                    return appleImg(surrogates, 32);
+                },
+            };
+
+            try {
+                return orig(newProps);
+            } catch {
+                return orig(props);
+            }
+        });
     }
 }
 
