@@ -1,5 +1,5 @@
-(function(r,u){"use strict";let e=null,n=null;function a(){const i=u.findByProps("defaultRules","createReactRules");if(!i?.defaultRules){alert("parseMod n\xE3o encontrado");return}const t=i.defaultRules;if(!t.emoji){alert("rules.emoji n\xE3o existe");return}n=t.emoji,e=t.emoji.react;let l=!1;t.emoji.react=function(o,s,d){return l||(l=!0,alert(`emoji node keys:
-`+Object.keys(o??{}).join(", ")+`
+(function(n,s){"use strict";let e=null;function r(){if(e=s.findByProps("defaultRules","createReactRules"),!e){alert("parseMod null");return}const o=Object.keys(e).join(", "),a=typeof e.createReactRules=="function";let l=!1,c="";if(a)try{const t=e.createReactRules();l=t===e.defaultRules,c=Object.keys(t??{}).slice(0,6).join(", ")}catch(t){c="erro: "+t?.message}alert("parseMod keys: "+o+`
 
-node JSON:
-`+JSON.stringify(o)?.slice(0,300))),e(o,s,d)}}a();const c=function(){n&&e&&(n.react=e)};return r.onUnload=c,r})({},vendetta.metro);
+createReactRules \xE9 fun\xE7\xE3o: `+a+`
+created === defaultRules: `+l+`
+created keys: `+c)}r();const u=function(){};return n.onUnload=u,n})({},vendetta.metro);
