@@ -1,6 +1,5 @@
 import { findByProps } from "@vendetta/metro";
 import { before } from "@vendetta/patcher";
-import { plugin } from "@vendetta";
 
 const RNChatModule = findByProps("updateRows", "sendMessage");
 
@@ -26,15 +25,23 @@ function iterate(content: any[]): void {
     }
 }
 
-export const onUnload = before("updateRows", RNChatModule, (args) => {
-    const rows = JSON.parse(args[1]);
-    try {
-        for (const row of rows) {
-            if (row.type === 1 && row.message?.content)
-                iterate(row.message.content);
+let unpatch: () => void;
+
+export function onLoad() {
+    unpatch = before("updateRows", RNChatModule, (args) => {
+        const rows = JSON.parse(args[1]);
+        try {
+            for (const row of rows) {
+                if (row.type === 1 && row.message?.content)
+                    iterate(row.message.content);
+            }
+        } catch (e: any) {
+            console.error(`[use-apple-emoji]`, e.stack);
         }
-    } catch (e: any) {
-        console.error(`[use-apple-emoji]`, e.stack);
-    }
-    args[1] = JSON.stringify(rows);
-});
+        args[1] = JSON.stringify(rows);
+    });
+}
+
+export function onUnload() {
+    unpatch?.();
+}
