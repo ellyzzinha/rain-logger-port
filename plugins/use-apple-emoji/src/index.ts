@@ -1,7 +1,7 @@
-// vendetta-types expõe tudo via @vendetta
 import { patcher } from "@vendetta";
 import { findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
+import { showToast } from "@vendetta/ui/toasts";
 
 const CDN = "https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/";
 
@@ -25,11 +25,9 @@ function appleURL(surrogate: string): string | null {
 function appleImg(surrogate: string, size: number): any {
     const url = appleURL(surrogate);
     if (!url) return null;
-
     const RN = findByProps("Image", "View") ?? findByProps("Image") ?? null;
     const Image = RN?.Image;
     if (!Image) return null;
-
     return React.createElement(Image, {
         key: `ape-${surrogate}-${size}`,
         source: { uri: url },
@@ -52,8 +50,46 @@ function tryPatch(
     } catch { }
 }
 
+// ── Diagnóstico ──────────────────────────────────────────────────────────────
+// Mostra via toast quais módulos foram encontrados.
+// Cada toast aparece por ~3s. Anota os que aparecem como "OK" e me manda.
+function runDiag() {
+    const checks: [string, string[]][] = [
+        // label, props a testar
+        ["NativeEmoji",       ["NativeEmoji"]],
+        ["EmojiComponent",    ["EmojiComponent"]],
+        ["renderNativeEmoji", ["renderNativeEmoji"]],
+        ["renderEmoji",       ["renderEmoji"]],
+        ["Emoji+EmojiText",   ["Emoji", "EmojiText"]],
+        ["Emoji",             ["Emoji"]],
+        ["EmojiReaction",     ["EmojiReaction"]],
+        ["ReactionEmoji",     ["ReactionEmoji"]],
+        ["MessageReaction",   ["MessageReaction"]],
+        ["EmojiPickerCell",   ["EmojiPickerCell"]],
+        ["EmojiPickerListRow",["EmojiPickerListRow"]],
+        ["emojiPickerCell",   ["emojiPickerCell"]],
+        ["Image+View",        ["Image", "View"]],
+    ];
+
+    let delay = 0;
+    for (const [label, props] of checks) {
+        const found = findByProps(...props);
+        const status = found ? "✅ OK" : "❌ NULL";
+        const keys = found ? ` → ${Object.keys(found).slice(0, 5).join(", ")}` : "";
+        setTimeout(() => {
+            try {
+                showToast(`[AE] ${label}: ${status}${keys}`);
+            } catch {
+                console.log(`[AppleEmoji diag] ${label}: ${status}${keys}`);
+            }
+        }, delay);
+        delay += 3500;
+    }
+}
+
 function init() {
-    // 1. NativeEmoji — componente base, cobre chat
+    runDiag();
+
     const emojiMod =
         findByProps("NativeEmoji") ??
         findByProps("EmojiComponent") ??
@@ -64,7 +100,6 @@ function init() {
             "NativeEmoji" in emojiMod ? "NativeEmoji" :
             "EmojiComponent" in emojiMod ? "EmojiComponent" :
             "renderNativeEmoji";
-
         tryPatch(emojiMod, key, ([props], orig) => {
             const surrogates = props?.emoji?.surrogates ?? props?.surrogates;
             if (!surrogates) return orig(props);
@@ -73,7 +108,6 @@ function init() {
         });
     }
 
-    // 2. Emoji node — mensagens, preserva jumbo
     const nodeMod =
         findByProps("renderEmoji") ??
         findByProps("Emoji", "EmojiText") ??
@@ -96,7 +130,6 @@ function init() {
         }
     }
 
-    // 3. Reações
     const reactionMod =
         findByProps("EmojiReaction") ??
         findByProps("ReactionEmoji") ??
@@ -113,7 +146,6 @@ function init() {
         }
     }
 
-    // 4. Picker (seletor de emojis)
     const pickerMod =
         findByProps("EmojiPickerCell") ??
         findByProps("EmojiPickerListRow") ??
