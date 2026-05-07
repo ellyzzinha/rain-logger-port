@@ -1,4 +1,3 @@
-import { patcher } from "@vendetta";
 import { findByProps } from "@vendetta/metro";
 import { React, ReactNative } from "@vendetta/metro/common";
 
@@ -19,11 +18,11 @@ function toPath(surrogate: string): string | null {
 function appleImg(surrogate: string, size: number): any {
     const path = toPath(surrogate);
     if (!path) return null;
-    const url = CDN + path;
     const Image = ReactNative?.Image;
     if (!Image) return null;
     return React.createElement(Image, {
-        source: { uri: url },
+        key: `apple-${surrogate}`,
+        source: { uri: CDN + path },
         style: { width: size, height: size },
         resizeMode: "contain",
         accessibilityLabel: surrogate,
@@ -31,28 +30,42 @@ function appleImg(surrogate: string, size: number): any {
     });
 }
 
-const unpatchers: (() => void)[] = [];
+// Guarda os originais para restaurar no onUnload
+let origEmojiReact: any = null;
+let origCustomEmojiReact: any = null;
+let emojiRule: any = null;
+let customEmojiRule: any = null;
 
 function init() {
     const parseMod = findByProps("defaultRules", "createReactRules");
-    if (!parseMod) {
-        alert("parseMod não encontrado");
-        return;
-    }
+    if (!parseMod?.defaultRules) return;
 
     const rules = parseMod.defaultRules;
-    if (!rules) {
-        alert("defaultRules null\nkeys: " + Object.keys(parseMod).join(", "));
-        return;
+
+    // ── emoji nativo (unicode) ─────────────────────────────────────────────
+    // node: { type: "emoji", surrogate, jumboable }
+    if (rules.emoji) {
+        emojiRule = rules.emoji;
+        origEmojiReact = rules.emoji.react;
+
+        rules.emoji.react = (node: any, output: any, state: any) => {
+            const surrogate = node?.surrogate ?? node?.surrogates ?? node?.emoji?.surrogates;
+            if (!surrogate) return origEmojiReact(node, output, state);
+            const size = node?.jumboable ? 48 : 22;
+            return appleImg(surrogate, size) ?? origEmojiReact(node, output, state);
+        };
     }
 
-    // Mostra as keys das regras para confirmar que existe "emoji"
-    alert("defaultRules keys:\n" + Object.keys(rules).join(", "));
+    // ── customEmoji (emojis de servidor) ──────────────────────────────────
+    // customEmoji usa URL própria — deixa passar o original
+    // mas se quiser substituir também, descomenta abaixo
+    // if (rules.customEmoji) { ... }
 }
 
 init();
 
 export const onUnload = () => {
-    for (const up of unpatchers) up();
-    unpatchers.length = 0;
+    if (emojiRule && origEmojiReact) {
+        emojiRule.react = origEmojiReact;
+    }
 };
