@@ -53,17 +53,21 @@ function init() {
     const parseMod = findByProps("defaultRules", "createReactRules");
     if (!parseMod) return;
 
-    // Patcha defaultRules direto
+    // Patcha defaultRules direto — sem patcher, só mutação direta
     patchRules(parseMod.defaultRules);
 
-    // Patcha createReactRules com instead — sem spread
-    unpatchers.push(
-        patcher.instead(parseMod, "createReactRules", function(args: any[], orig: Function) {
-            const result = orig.apply(parseMod, args);
+    // Patcha createReactRules também via mutação direta
+    const origCreate = parseMod.createReactRules;
+    if (typeof origCreate === "function") {
+        parseMod.createReactRules = function(...args: any[]) {
+            const result = origCreate.apply(this, args);
             patchRules(result);
             return result;
-        })
-    );
+        };
+        unpatchers.push(() => {
+            parseMod.createReactRules = origCreate;
+        });
+    }
 }
 
 init();
