@@ -1,1 +1,2 @@
-(function(n){"use strict";const o=function(){};return n.onUnload=o,n})({});
+(function(n,a,c){"use strict";const t=[];function o(){try{const e=c.findByProps("defaultRules","createReactRules");if(!e){alert("parseMod null");return}if(typeof e.createReactRules!="function"){alert("createReactRules n\xE3o \xE9 fun\xE7\xE3o: "+typeof e.createReactRules);return}t.push(a.patcher.instead(e,"createReactRules",function(u,s){return s(...u)})),alert("ok \u2014 patcher funcionou")}catch(e){alert("ERRO: "+e?.message+`
+`+e?.stack?.slice(0,200))}}o();const r=function(){for(const e of t)e();t.length=0};return n.onUnload=r,n})({},vendetta,vendetta.metro);
