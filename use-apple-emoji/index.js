@@ -1,2 +1,2 @@
-(function(e,s){"use strict";function d(){const n=s.findByProps("updateRows"),o=s.findByProps("updateRows","clearRows"),a=s.findByProps("sendMessage");alert([n?`\u2705 updateRows: ${Object.keys(n).slice(0,5).join(", ")}`:"\u274C updateRows",o?`\u2705 updateRows+clearRows: ${Object.keys(o).slice(0,5).join(", ")}`:"\u274C updateRows+clearRows",a?`\u2705 sendMessage: ${Object.keys(a).slice(0,5).join(", ")}`:"\u274C sendMessage"].join(`
-`))}function u(){}return e.onLoad=d,e.onUnload=u,e})({},vendetta.metro);
+(function(n,e){"use strict";function t(){const s=["updateRows","appendRows","setRows","receiveRows","loadRows","pushRows","addRows","renderRows"].map(function(o){return e.findByProps(o)?`\u2705 ${o}`:`\u274C ${o}`});alert(s.join(`
+`))}function d(){}return n.onLoad=t,n.onUnload=d,n})({},vendetta.metro);
