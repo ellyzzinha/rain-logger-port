@@ -1,2 +1,1 @@
-(function(n,e){"use strict";function t(){const s=["updateRows","appendRows","setRows","receiveRows","loadRows","pushRows","addRows","renderRows"].map(function(o){return e.findByProps(o)?`\u2705 ${o}`:`\u274C ${o}`});alert(s.join(`
-`))}function d(){}return n.onLoad=t,n.onUnload=d,n})({},vendetta.metro);
+(function(n,o){"use strict";function t(){const a=o.findByProps("updateRows");alert(`keys: ${Object.keys(a).join(", ")}`)}function e(){}return n.onLoad=t,n.onUnload=e,n})({},vendetta.metro);
