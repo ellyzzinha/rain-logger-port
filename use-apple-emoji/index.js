@@ -1,4 +1,4 @@
-(function(n,s,i,c){"use strict";const e=[];let a=!1;function u(){const t=i.findByProps("Emoji","asUnicodeEmoji");if(!t){alert("emojiMod null");return}e.push(s.patcher.instead(t,"Emoji",function(r,d){const o=r[0];if(!a){a=!0;const f=o?.emoji?.surrogates??o?.node?.surrogate??o?.surrogates??"N/A",l=c.ReactNative?.Image;alert(`Emoji chamado!
-props keys: `+Object.keys(o??{}).join(", ")+`
-surrogate: `+f+`
-ReactNative.Image: `+(l?"OK":"NULL"))}return d.apply(this,r)}))}u();const m=function(){for(const t of e)t();e.length=0};return n.onUnload=m,n})({},vendetta,vendetta.metro,vendetta.metro.common);
+(function(e,r,a){"use strict";let i=!1,t=null,o=null;function m(){if(o=r.findByProps("Emoji","asUnicodeEmoji"),!o?.Emoji){alert("emojiMod null");return}t=o.Emoji,o.Emoji=function(n){if(!i){i=!0;const s=n?.emoji?.surrogates??n?.node?.surrogate??n?.surrogates??"N/A";alert(`Emoji chamado!
+props keys: `+Object.keys(n??{}).join(", ")+`
+surrogate: `+s+`
+Image: `+(a.ReactNative?.Image?"OK":"NULL"))}return t(n)}}m();const u=function(){o&&t&&(o.Emoji=t)};return e.onUnload=u,e})({},vendetta.metro,vendetta.metro.common);
