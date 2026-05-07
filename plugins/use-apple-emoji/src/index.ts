@@ -1,39 +1,34 @@
 import { findByProps } from "@vendetta/metro";
-import { React, ReactNative } from "@vendetta/metro/common";
-
-let logged = false;
-let origEmoji: any = null;
-let emojiMod: any = null;
 
 function init() {
-    emojiMod = findByProps("Emoji", "asUnicodeEmoji");
-    if (!emojiMod?.Emoji) { alert("emojiMod null"); return; }
+    // Tenta achar o módulo que tem as rows de mensagem
+    const checks = [
+        "patchRows",
+        "updateRows", 
+        "processRows",
+        "renderRows",
+        "MessageStore",
+        "getMessages",
+        "updateMessage",
+    ];
 
-    origEmoji = emojiMod.Emoji;
-
-    emojiMod.Emoji = function(props: any) {
-        if (!logged) {
-            logged = true;
-            const surrogate =
-                props?.emoji?.surrogates ??
-                props?.node?.surrogate ??
-                props?.surrogates ??
-                "N/A";
-            alert(
-                "Emoji chamado!\n" +
-                "props keys: " + Object.keys(props ?? {}).join(", ") + "\n" +
-                "surrogate: " + surrogate + "\n" +
-                "Image: " + (ReactNative?.Image ? "OK" : "NULL")
-            );
+    const results = checks.map(key => {
+        try {
+            const mod = findByProps(key);
+            if (!mod) return `❌ ${key}`;
+            return `✅ ${key} → ${Object.keys(mod).slice(0, 5).join(", ")}`;
+        } catch {
+            return `❌ ${key}`;
         }
-        return origEmoji(props);
-    };
+    });
+
+    // Tenta achar pelo tipo de row
+    const rowMod = findByProps("updateRows") ?? findByProps("setRows") ?? null;
+    results.push("rowMod: " + (rowMod ? Object.keys(rowMod).join(", ") : "null"));
+
+    alert(results.join("\n"));
 }
 
 init();
 
-export const onUnload = () => {
-    if (emojiMod && origEmoji) {
-        emojiMod.Emoji = origEmoji;
-    }
-};
+export const onUnload = () => {};
