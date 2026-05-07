@@ -1,4 +1,2 @@
-(function(e,r,a){"use strict";let i=!1,t=null,o=null;function m(){if(o=r.findByProps("Emoji","asUnicodeEmoji"),!o?.Emoji){alert("emojiMod null");return}t=o.Emoji,o.Emoji=function(n){if(!i){i=!0;const s=n?.emoji?.surrogates??n?.node?.surrogate??n?.surrogates??"N/A";alert(`Emoji chamado!
-props keys: `+Object.keys(n??{}).join(", ")+`
-surrogate: `+s+`
-Image: `+(a.ReactNative?.Image?"OK":"NULL"))}return t(n)}}m();const u=function(){o&&t&&(o.Emoji=t)};return e.onUnload=u,e})({},vendetta.metro,vendetta.metro.common);
+(function(e,s){"use strict";function c(){const t=["patchRows","updateRows","processRows","renderRows","MessageStore","getMessages","updateMessage"].map(function(n){try{const u=s.findByProps(n);return u?`\u2705 ${n} \u2192 ${Object.keys(u).slice(0,5).join(", ")}`:`\u274C ${n}`}catch{return`\u274C ${n}`}}),o=s.findByProps("updateRows")??s.findByProps("setRows")??null;t.push("rowMod: "+(o?Object.keys(o).join(", "):"null")),alert(t.join(`
+`))}c();const r=function(){};return e.onUnload=r,e})({},vendetta.metro);
