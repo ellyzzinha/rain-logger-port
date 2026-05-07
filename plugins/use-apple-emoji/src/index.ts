@@ -1,7 +1,6 @@
 import { patcher } from "@vendetta";
 import { findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
-import { showToast } from "@vendetta/ui/toasts";
 
 const CDN = "https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/";
 
@@ -51,40 +50,48 @@ function tryPatch(
 }
 
 // ── Diagnóstico ──────────────────────────────────────────────────────────────
-// Mostra via toast quais módulos foram encontrados.
-// Cada toast aparece por ~3s. Anota os que aparecem como "OK" e me manda.
 function runDiag() {
     const checks: [string, string[]][] = [
-        // label, props a testar
-        ["NativeEmoji",       ["NativeEmoji"]],
-        ["EmojiComponent",    ["EmojiComponent"]],
-        ["renderNativeEmoji", ["renderNativeEmoji"]],
-        ["renderEmoji",       ["renderEmoji"]],
-        ["Emoji+EmojiText",   ["Emoji", "EmojiText"]],
-        ["Emoji",             ["Emoji"]],
-        ["EmojiReaction",     ["EmojiReaction"]],
-        ["ReactionEmoji",     ["ReactionEmoji"]],
-        ["MessageReaction",   ["MessageReaction"]],
-        ["EmojiPickerCell",   ["EmojiPickerCell"]],
-        ["EmojiPickerListRow",["EmojiPickerListRow"]],
-        ["emojiPickerCell",   ["emojiPickerCell"]],
-        ["Image+View",        ["Image", "View"]],
+        ["NativeEmoji",        ["NativeEmoji"]],
+        ["EmojiComponent",     ["EmojiComponent"]],
+        ["renderNativeEmoji",  ["renderNativeEmoji"]],
+        ["renderEmoji",        ["renderEmoji"]],
+        ["Emoji+EmojiText",    ["Emoji", "EmojiText"]],
+        ["Emoji",              ["Emoji"]],
+        ["EmojiReaction",      ["EmojiReaction"]],
+        ["ReactionEmoji",      ["ReactionEmoji"]],
+        ["MessageReaction",    ["MessageReaction"]],
+        ["EmojiPickerCell",    ["EmojiPickerCell"]],
+        ["EmojiPickerListRow", ["EmojiPickerListRow"]],
+        ["emojiPickerCell",    ["emojiPickerCell"]],
+        ["Image+View",         ["Image", "View"]],
     ];
 
-    let delay = 0;
+    const lines: string[] = [];
     for (const [label, props] of checks) {
         const found = findByProps(...props);
-        const status = found ? "✅ OK" : "❌ NULL";
-        const keys = found ? ` → ${Object.keys(found).slice(0, 5).join(", ")}` : "";
-        setTimeout(() => {
-            try {
-                showToast(`[AE] ${label}: ${status}${keys}`);
-            } catch {
-                console.log(`[AppleEmoji diag] ${label}: ${status}${keys}`);
-            }
-        }, delay);
-        delay += 3500;
+        if (found) {
+            // mostra até 8 keys do módulo encontrado
+            const keys = Object.keys(found).slice(0, 8).join(", ");
+            lines.push(`✅ ${label}\n   keys: ${keys}`);
+        } else {
+            lines.push(`❌ ${label}`);
+        }
     }
+
+    const msg = lines.join("\n\n");
+
+    // Tenta Alert nativo do React Native
+    try {
+        const { Alert } = findByProps("Alert") ?? (global as any).ReactNative ?? {};
+        if (Alert?.alert) {
+            Alert.alert("AppleEmoji Diag", msg);
+            return;
+        }
+    } catch { }
+
+    // Fallback: console (visível em Settings > Developer)
+    console.log("[AppleEmoji Diag]\n" + msg);
 }
 
 function init() {
