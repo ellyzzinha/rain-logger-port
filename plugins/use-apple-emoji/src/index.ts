@@ -15,60 +15,56 @@ function toPath(surrogate: string): string | null {
     return pts.length ? pts.join("-") + ".png" : null;
 }
 
-function appleNode(surrogate: string, jumboable: boolean) {
+function appleImg(surrogate: string, size: number) {
     const path = toPath(surrogate);
     if (!path) return null;
-    const size = jumboable ? 48 : 22;
-    return {
-        type: "image" as any,
-        target: CDN + path,
-        width: size,
-        height: size,
-        alt: surrogate,
+    return React.createElement(ReactNative.Image, {
+        key: `apple-${surrogate}`,
+        source: { uri: CDN + path },
+        style: { width: size, height: size },
+        resizeMode: "contain",
+        accessibilityLabel: surrogate,
+        fadeDuration: 0,
+    });
+}
+
+function patchRules(rules: any) {
+    if (!rules?.emoji?.react) return;
+    const orig = rules.emoji.react;
+    rules.emoji.react = function(node: any, output: any, state: any) {
+        const surrogate = node?.surrogate ?? node?.surrogates;
+        if (!surrogate) return orig(node, output, state);
+        const size = node?.jumboable ? 48 : 22;
+        return appleImg(surrogate, size) ?? orig(node, output, state);
     };
 }
 
-function iterate(rows: any[]): any[] {
-    const out: any[] = [];
-    for (const row of rows) {
-        if (row.type === "emoji" && row.surrogate) {
-            const node = appleNode(row.surrogate, row.jumboable ?? false);
-            out.push(node ?? row);
-        } else {
-            const r = { ...row };
-            if (Array.isArray(r.content)) r.content = iterate(r.content);
-            if (Array.isArray(r.items)) r.items = iterate(r.items);
-            out.push(r);
-        }
-    }
-    return out;
-}
-
-let rowMod: any = null;
-let origUpdateRows: any = null;
-
 function init() {
-    rowMod = findByProps("updateRows", "clearRows");
-    if (!rowMod) { alert("rowMod null"); return; }
+    const parseMod = findByProps("defaultRules", "createReactRules");
+    if (!parseMod) return;
 
-    origUpdateRows = rowMod.updateRows;
+    // Patcha defaultRules
+    patchRules(parseMod.defaultRules);
 
-    rowMod.updateRows = function(rows: any[], ...rest: any[]) {
-        if (Array.isArray(rows)) {
-            for (const row of rows) {
-                if (row.type === 1 && Array.isArray(row.message?.content)) {
-                    row.message.content = iterate(row.message.content);
-                }
-            }
-        }
-        return origUpdateRows.apply(this, [rows, ...rest]);
+    // Patcha todas as outras rules sets do módulo
+    const ruleKeys = [
+        "guildEventRules",
+        "notifCenterV2MessagePreviewRules",
+        "lockscreenWidgetRules",
+    ];
+    for (const key of ruleKeys) {
+        if (parseMod[key]) patchRules(parseMod[key]);
+    }
+
+    // Sobrescreve createReactRules
+    const origCreate = parseMod.createReactRules;
+    parseMod.createReactRules = function(...args: any[]) {
+        const result = origCreate.apply(this, args);
+        patchRules(result);
+        return result;
     };
 }
 
 init();
 
-export const onUnload = () => {
-    if (rowMod && origUpdateRows) {
-        rowMod.updateRows = origUpdateRows;
-    }
-};
+export const onUnload = () => {};
