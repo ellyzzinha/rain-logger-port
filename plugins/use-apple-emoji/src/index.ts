@@ -1,36 +1,40 @@
 import { findByProps } from "@vendetta/metro";
+import { before } from "@vendetta/patcher";
+import { plugin } from "@vendetta";
 
-function init() {
-    // Tenta achar módulos relacionados a mensagens e rows
-    const checks: [string, string[]][] = [
-        ["ChatRow", ["ChatRow"]],
-        ["MessageRow", ["MessageRow"]],
-        ["getMessageRows", ["getMessageRows"]],
-        ["renderRow", ["renderRow"]],
-        ["rowForMessage", ["rowForMessage"]],
-        ["messageToRows", ["messageToRows"]],
-        ["generateRows", ["generateRows"]],
-        ["type+message", ["type", "message", "content"]],
-        ["isJumboable", ["isJumboable"]],
-        ["jumboable", ["jumboable"]],
-        ["surrogate", ["surrogate"]],
-        ["RowManager", ["RowManager"]],
-        ["MessageListView", ["MessageListView"]],
-    ];
+const RNChatModule = findByProps("updateRows", "sendMessage");
 
-    const results = checks.map(([label, props]) => {
-        try {
-            const mod = findByProps(...props);
-            if (!mod) return `❌ ${label}`;
-            return `✅ ${label} → ${Object.keys(mod).slice(0, 5).join(", ")}`;
-        } catch {
-            return `❌ ${label}`;
-        }
-    });
+const CDN = "https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/";
 
-    alert(results.join("\n"));
+function toPath(surrogate: string): string {
+    return [...surrogate]
+        .map(c => c.codePointAt(0)!.toString(16))
+        .join("-") + ".png";
 }
 
-init();
+function iterate(content: any[]): void {
+    for (const node of content) {
+        if (node.type === "emoji") {
+            node.type = "customEmoji";
+            node.id = node.surrogate;
+            node.alt = node.surrogate;
+            node.src = CDN + toPath(node.surrogate);
+            node.frozenSrc = node.src;
+        }
+        if (Array.isArray(node.content)) iterate(node.content);
+        if (Array.isArray(node.items)) iterate(node.items);
+    }
+}
 
-export const onUnload = () => {};
+export const onUnload = before("updateRows", RNChatModule, (args) => {
+    const rows = JSON.parse(args[1]);
+    try {
+        for (const row of rows) {
+            if (row.type === 1 && row.message?.content)
+                iterate(row.message.content);
+        }
+    } catch (e: any) {
+        console.error(`[use-apple-emoji]`, e.stack);
+    }
+    args[1] = JSON.stringify(rows);
+});
