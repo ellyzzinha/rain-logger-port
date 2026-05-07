@@ -35,13 +35,14 @@ const unpatchers: (() => void)[] = [];
 
 function patchRules(rules: any) {
     if (!rules?.emoji) return;
-    const orig = rules.emoji.react;
+    const orig = rules.emoji.react?.bind(rules.emoji);
+    if (!orig) return;
     rules.emoji.react = (node: any, output: any, state: any) => {
         const surrogate =
             node?.surrogate ??
             node?.surrogates ??
             node?.emoji?.surrogates ??
-            node?.name; // fallback: nome do emoji ex: "smile"
+            node?.name;
         if (!surrogate) return orig(node, output, state);
         const size = node?.jumboable ? 48 : 22;
         return appleImg(surrogate, size) ?? orig(node, output, state);
@@ -52,16 +53,19 @@ function init() {
     const parseMod = findByProps("defaultRules", "createReactRules");
     if (!parseMod) return;
 
-    // Patcha o defaultRules também (por via das dúvidas)
+    // Patcha defaultRules direto
     patchRules(parseMod.defaultRules);
 
-    // Patcha createReactRules para interceptar toda cópia nova criada
-    unpatchers.push(
-        patcher.after(parseMod, "createReactRules", (_, result) => {
-            patchRules(result);
-            return result;
-        })
-    );
+    // Patcha createReactRules usando instead para interceptar o resultado
+    if (typeof parseMod.createReactRules === "function") {
+        unpatchers.push(
+            patcher.instead(parseMod, "createReactRules", (args, orig) => {
+                const result = orig(...args);
+                patchRules(result);
+                return result;
+            })
+        );
+    }
 }
 
 init();
