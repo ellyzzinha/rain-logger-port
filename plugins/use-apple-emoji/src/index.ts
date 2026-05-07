@@ -13,13 +13,20 @@ function init() {
     rowMod.updateRows = function(...args: any[]) {
         if (!logged) {
             logged = true;
-            const rows = args[0];
+            const rows = args[1]; // segundo argumento
+            const isArr = Array.isArray(rows);
+            const first = isArr ? rows[0] : null;
+            const firstKeys = Object.keys(first ?? {}).join(", ");
+            const msg = first?.message;
+            const content = msg?.content;
+            const node = Array.isArray(content) ? content[0] : null;
             alert(
-                "args.length: " + args.length + "\n" +
-                "rows type: " + typeof rows + "\n" +
-                "isArray: " + Array.isArray(rows) + "\n" +
-                "rows length: " + (Array.isArray(rows) ? rows.length : "N/A") + "\n" +
-                "keys: " + Object.keys(rows ?? {}).slice(0, 10).join(", ")
+                "args[1] isArray: " + isArr + "\n" +
+                "length: " + (isArr ? rows.length : "N/A") + "\n" +
+                "first keys: " + firstKeys + "\n" +
+                "first.type: " + first?.type + "\n" +
+                "node.type: " + node?.type + "\n" +
+                "node.surrogate: " + node?.surrogate
             );
         }
         return origUpdateRows.apply(this, args);
