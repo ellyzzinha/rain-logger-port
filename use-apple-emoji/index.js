@@ -1,5 +1,4 @@
-(function(t,r){"use strict";const i=[];function s(){const n=r.findByProps("Emoji","asUnicodeEmoji");if(!n){alert("emojiMod NULL");return}const u=Object.keys(n).map(function(e){const o=n[e],c=typeof o,a=c==="function"?` | body: ${o.toString().slice(0,100)}`:` | val: ${JSON.stringify(o)?.slice(0,60)}`;return`${e} [${c}]${a}`}).join(`
-
-`);alert(`emojiMod:
-
-`+u)}s();const f=function(){for(const n of i)n();i.length=0};return t.onUnload=f,t})({},vendetta.metro);
+(function(i,e){"use strict";const t=[];function s(){const o=["Emoji","EmojiComponent","NativeEmoji","EmojiText","ChatEmoji","ReactionEmoji","MessageEmoji"].map(function(n){try{return{name:n,mod:e.findByName(n,{interop:!1})}}catch{return{name:n,mod:null}}}),l=o.filter(function(n){return n.mod!=null}),a=o.filter(function(n){return n.mod==null}),u=e.findByProps("renderEmoji")??null,r=e.findByProps("renderUnicodeEmoji")??null,m=e.findByProps("convertSurrogateToCodePoint")??null,j=e.findByProps("getEmojiImageURL")??null,c=e.findByProps("getEmojiSprite")??null,f=["=== findByName ===",l.map(function(n){return`\u2705 ${n.name}`}).join(`
+`)||"nenhum",a.map(function(n){return`\u274C ${n.name}`}).join(`
+`),"","=== outros m\xF3dulos ===",`renderEmoji: ${u?"\u2705 keys: "+Object.keys(u).join(", "):"\u274C"}`,`renderUnicodeEmoji: ${r?"\u2705 keys: "+Object.keys(r).join(", "):"\u274C"}`,`convertSurrogateToCodePoint: ${m?"\u2705 keys: "+Object.keys(m).join(", "):"\u274C"}`,`getEmojiImageURL: ${j?"\u2705 keys: "+Object.keys(j).join(", "):"\u274C"}`,`getEmojiSprite: ${c?"\u2705 keys: "+Object.keys(c).join(", "):"\u274C"}`].join(`
+`);alert(f)}s();const d=function(){for(const o of t)o();t.length=0};return i.onUnload=d,i})({},vendetta.metro);
